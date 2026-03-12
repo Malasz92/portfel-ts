@@ -668,6 +668,8 @@
         <col style="width:7%">   <!-- Nabycie praw -->
         <col style="width:7%">   <!-- Dzień wypłaty -->
         <col style="width:6%">   <!-- Status -->
+        <col style="width:6%">   <!-- C/Z -->
+        <col style="width:7%">   <!-- Payout -->
       </colgroup>
       <thead>
         <tr>
@@ -684,6 +686,8 @@
           <th>Nabycie praw (ex-div)</th>
           <th>Dzień wypłaty</th>
           <th>Status</th>
+          <th title="Cena/Zysk TTM z FMP">C/Z TTM</th>
+          <th title="Payout Ratio TTM">Wypłata %</th>
         </tr>
       </thead>
       <tbody id="tableBody"></tbody>
@@ -716,6 +720,9 @@ const PORTFOLIO_DEFAULTS = [
 // ─── State ────────────────────────────────────────────────────────────────────
 let divData = {};
 let autoInterval = null;
+let fundData = {}; // P/E TTM, Revenue TTM z FMP
+const FMP_KEY = '4FaHwHQleTQqe9F5EelxShLBxEON0n75';
+const FUND_CACHE_KEY = 'divwatch_fund_cache_v1';
 let autoOn = false;
 let globalPlnToUsd = null; // kurs PLN→USD pobierany przy każdym fetch
 const CACHE_KEY = 'divwatch_cache_v2';
@@ -917,6 +924,41 @@ async function fetchAll() {
 
   btn.disabled = false;
   spinner.style.display = 'none';
+  fetchFundamentals();
+}
+// ─── Fundamentals (FMP) ───────────────────────────────────────────────────────
+async function fetchFundamentals() {
+  const today = new Date().toISOString().split('T')[0];
+  const cacheKey = FUND_CACHE_KEY + '_' + today;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try { fundData = JSON.parse(cached); renderTable(divData); return; } catch(e) {}
+  }
+
+  const usTickers = PORTFOLIO.filter(s => s.currency !== 'PLN').map(s => s.ticker);
+  const results = {};
+
+  for (const ticker of usTickers) {
+    try {
+      const url = `https://financialmodelingprep.com/api/v3/key-metrics-ttm/${ticker}?apikey=${FMP_KEY}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (json && json[0]) {
+        const m = json[0];
+        results[ticker] = {
+          pe: m.peRatioTTM ? parseFloat(m.peRatioTTM).toFixed(1) : null,
+          revenuePerShare: m.revenuePerShareTTM ? parseFloat(m.revenuePerShareTTM).toFixed(2) : null,
+          payoutRatio: m.payoutRatioTTM ? (parseFloat(m.payoutRatioTTM) * 100).toFixed(1) : null,
+        };
+      }
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 200));
+  }
+
+  fundData = results;
+  localStorage.setItem(cacheKey, JSON.stringify(results));
+  renderTable(divData);
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
@@ -1132,7 +1174,24 @@ function renderTable(data) {
         })()}
       </td>
       <td>${statusHtml}</td>
-    `;
+      <td>${(() => {
+        const f = fundData[s.ticker];
+        if (!f) return '<span style="color:var(--muted)">—</span>';
+        const pe = parseFloat(f.pe);
+        let color = 'var(--text)';
+        if (pe > 0 && pe < 15) color = 'var(--accent)';
+        else if (pe >= 15 && pe < 25) color = 'var(--gold)';
+        else if (pe >= 25) color = 'var(--red)';
+        return f.pe ? \`<span style="color:\${color};font-weight:500">\${f.pe}</span>\` : '<span style="color:var(--muted)">—</span>';
+      })()}</td>
+      <td>${(() => {
+        const f = fundData[s.ticker];
+        if (!f || !f.payoutRatio) return '<span style="color:var(--muted)">—</span>';
+        const pr = parseFloat(f.payoutRatio);
+        let color = pr < 60 ? 'var(--accent)' : pr < 85 ? 'var(--gold)' : 'var(--red)';
+        return \`<span style="color:\${color}">\${f.payoutRatio}%</span>\`;
+      })()}</td>
+    \`;
     tbody.appendChild(tr);
   });
 
@@ -1286,6 +1345,26 @@ function renderMobileCards(data) {
           <span class="m-label">Wartość pozycji</span>
           <span class="m-value">${valueStr}</span>
         </div>
+        ${(() => {
+          const f = fundData[s.ticker];
+          if (!f) return '';
+          const pe = parseFloat(f.pe);
+          let peColor = 'var(--text)';
+          if (pe > 0 && pe < 15) peColor = 'var(--accent)';
+          else if (pe >= 15 && pe < 25) peColor = 'var(--gold)';
+          else if (pe >= 25) peColor = 'var(--red)';
+          const pr = parseFloat(f.payoutRatio);
+          let prColor = pr < 60 ? 'var(--accent)' : pr < 85 ? 'var(--gold)' : 'var(--red)';
+          return `
+        <div class="m-field">
+          <span class="m-label">C/Z TTM</span>
+          <span class="m-value" style="color:${peColor}">${f.pe || '—'}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">Wypłata %</span>
+          <span class="m-value" style="color:${prColor}">${f.payoutRatio ? f.payoutRatio + '%' : '—'}</span>
+        </div>`;
+        })()}
       </div>
       <div class="m-divider"></div>
       <div class="m-dates">
