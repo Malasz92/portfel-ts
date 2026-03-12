@@ -677,8 +677,7 @@ async function fetchAll() {
   // EODHD ticker format: VZ.US, AGNC.US, ULG.WAW (Warsaw)
   function toEodTicker(s) {
     if (s.currency === 'PLN') {
-      // ULG.WA → ULG.WAW (EODHD format for Warsaw Stock Exchange)
-      return s.ticker.replace('.WA', '.WAW');
+      return s.ticker.replace('.WA', '.WAR');
     }
     return `${s.ticker}.US`;
   }
