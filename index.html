@@ -471,6 +471,102 @@
     header { flex-direction: column; align-items: flex-start; gap: 12px; }
     .header-meta { text-align: left; }
   }
+
+  /* ── Mobile card view ───────────────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .table-wrapper { display: none; }
+    .mobile-cards { display: block; }
+  }
+  @media (min-width: 901px) {
+    .mobile-cards { display: none; }
+  }
+
+  .mobile-cards {
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .m-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    position: relative;
+  }
+
+  .m-card.new-div {
+    border-color: rgba(0,229,160,0.4);
+    background: linear-gradient(135deg, #111318 0%, #0d1a14 100%);
+  }
+
+  .m-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .m-card-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .m-card-ticker {
+    font-family: 'DM Mono', monospace;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .m-card-fullname {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .m-card-price {
+    font-family: 'DM Mono', monospace;
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: right;
+  }
+
+  .m-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+
+  .m-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .m-label {
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .m-value {
+    font-size: 0.82rem;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .m-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 10px 0;
+  }
+
+  .m-dates {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
 </style>
 </head>
 <body>
@@ -573,6 +669,8 @@
       <tbody id="tableBody"></tbody>
     </table>
   </div>
+
+  <div class="mobile-cards" id="mobileCards"></div>
 
   <div class="footer">
     DividendWatch · dane: <a href="https://eodhd.com" style="color:var(--accent)">EODHD</a> · odświeżaj ręcznie lub automatycznie co 15 minut<br>
@@ -1021,6 +1119,138 @@ function renderTable(data) {
     document.getElementById('divCount').textContent = `${divCount} / ${PORTFOLIO.length}`;
     document.getElementById('newCount').textContent = document.querySelectorAll('tr.new-div').length.toString();
   }
+
+  // Renderuj karty mobilne
+  renderMobileCards(data);
+}
+
+// ─── Mobile Cards ─────────────────────────────────────────────────────────────
+function renderMobileCards(data) {
+  const container = document.getElementById('mobileCards');
+  if (!container) return;
+  container.innerHTML = '';
+
+  PORTFOLIO.forEach(s => {
+    const d = data ? data[s.ticker] : null;
+    const plnRate = d?.plnToUsd || globalPlnToUsd;
+
+    const currentPrice    = d?.currentPrice    || null;
+    const currentPriceRaw = d?.currentPriceRaw || null;
+    const avgCostUsd      = (s.currency === 'PLN' && plnRate) ? s.avgCost * plnRate : s.avgCost;
+    const divAmt          = d ? parseFloat(d.dividend || 0) : 0;
+
+    // Cena bieżąca
+    const priceStr = !d ? '—' : currentPriceRaw
+      ? (s.currency === 'PLN'
+          ? `${currentPriceRaw.toFixed(2)} zł<br><span style="font-size:0.75rem;color:var(--muted)">≈ $${currentPrice.toFixed(2)}</span>`
+          : `$${currentPrice.toFixed(2)}`)
+      : '—';
+
+    // P&L
+    let plStr = '—', plColor = 'var(--muted)';
+    if (currentPrice && avgCostUsd) {
+      const plPct = ((currentPrice - avgCostUsd) / avgCostUsd) * 100;
+      const plAbs = (currentPrice - avgCostUsd) * s.shares;
+      const sign  = plPct >= 0 ? '+' : '';
+      plColor = plPct >= 0 ? 'var(--accent)' : 'var(--red)';
+      plStr   = `${sign}$${plAbs.toFixed(2)} (${sign}${plPct.toFixed(2)}%)`;
+    }
+
+    // Wartość
+    let valueStr;
+    if (s.currency === 'PLN') {
+      const valPln = currentPriceRaw ? currentPriceRaw * s.shares : s.value;
+      const valUsd = plnRate ? valPln * plnRate : null;
+      valueStr = `${valPln.toLocaleString('pl-PL', {minimumFractionDigits:2})} zł` + (valUsd ? `<br><span style="font-size:0.75rem;color:var(--muted)">≈ $${valUsd.toLocaleString('en-US',{minimumFractionDigits:2})}</span>` : '');
+    } else {
+      const val = currentPrice ? currentPrice * s.shares : s.value;
+      valueStr = `$${val.toLocaleString('en-US', {minimumFractionDigits:2})}`;
+    }
+
+    // Yield
+    const freqMults = {'Miesięczna':12,'Kwartalna':4,'Półroczna':2,'Roczna':1};
+    let freqMult = 4, freq = '—';
+    if (d?._history?.length >= 2) {
+      const dates = d._history.map(x => new Date(x.date)).sort((a,b)=>b-a);
+      const gaps = [];
+      for (let i=0; i<dates.length-1; i++) gaps.push((dates[i]-dates[i+1])/(1000*60*60*24));
+      const avg = gaps.reduce((a,b)=>a+b,0)/gaps.length;
+      if (avg < 40) { freq='Miesięczna'; freqMult=12; }
+      else if (avg < 100) { freq='Kwartalna'; freqMult=4; }
+      else if (avg < 200) { freq='Półroczna'; freqMult=2; }
+      else { freq='Roczna'; freqMult=1; }
+    }
+    const annualTotal = divAmt * freqMult * s.shares;
+    const costBasis   = avgCostUsd * s.shares;
+    const yieldOnCost = costBasis > 0 && divAmt > 0 ? (annualTotal / costBasis * 100).toFixed(2) : null;
+
+    // Daty
+    const exDiv = d?.nextExDivDate;
+    const payDate = d?.nextPaymentDate;
+    const exStr = exDiv
+      ? (new Date(exDiv) > new Date()
+          ? `<span style="color:var(--accent)">📋 ${exDiv}</span>`
+          : `<span style="color:var(--muted)">${exDiv}</span>`)
+      : '<span style="color:var(--muted)">—</span>';
+    const payStr = payDate
+      ? (new Date(payDate) > new Date()
+          ? `<span style="color:var(--gold)">💰 ${payDate}</span>`
+          : `<span style="color:var(--muted)">${payDate}</span>`)
+      : '<span style="color:var(--muted)">—</span>';
+
+    const card = document.createElement('div');
+    card.className = 'm-card';
+    card.innerHTML = `
+      <div class="m-card-header">
+        <div class="m-card-name">
+          <div class="stock-icon" style="background:${s.bg};color:${s.color};border:1px solid ${s.color}33;width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;font-family:'DM Mono',monospace;">${s.ticker.substring(0,4)}</div>
+          <div>
+            <div class="m-card-ticker">${s.ticker}</div>
+            <div class="m-card-fullname">${s.name}</div>
+          </div>
+        </div>
+        <div class="m-card-price">${priceStr}</div>
+      </div>
+      <div class="m-grid">
+        <div class="m-field">
+          <span class="m-label">Wartość pozycji</span>
+          <span class="m-value">${valueStr}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">P&L</span>
+          <span class="m-value" style="color:${plColor}">${plStr}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">Dywidenda / akcja</span>
+          <span class="m-value">${divAmt > 0 ? `$${divAmt.toFixed(4)}` : '—'}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">Yield (od zakupu)</span>
+          <span class="m-value" style="color:var(--accent)">${yieldOnCost ? yieldOnCost + '%' : '—'}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">Częstotliwość</span>
+          <span class="m-value" style="color:var(--muted)">${freq}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">Roczna (Twoja)</span>
+          <span class="m-value" style="color:var(--accent)">${annualTotal > 0 ? '$' + annualTotal.toFixed(2) : '—'}</span>
+        </div>
+      </div>
+      <div class="m-divider"></div>
+      <div class="m-dates">
+        <div class="m-field">
+          <span class="m-label">Nabycie praw (ex-div)</span>
+          <span class="m-value">${exStr}</span>
+        </div>
+        <div class="m-field">
+          <span class="m-label">Dzień wypłaty</span>
+          <span class="m-value">${payStr}</span>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
 }
 
 // ─── Inline Edit ──────────────────────────────────────────────────────────────
