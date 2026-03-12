@@ -801,21 +801,43 @@ async function fetchAll() {
   fromDate.setFullYear(fromDate.getFullYear() - 2);
   const from = fromDate.toISOString().split('T')[0];
 
+  // ── Jedno zapytanie dla WSZYSTKICH cen (bulk) ─────────────────────────────
+  let bulkPrices = {};
+  try {
+    const tickers = PORTFOLIO.map(s => toEodTicker(s)).join(',');
+    const bulkJson = await apiFetch(`https://eodhd.com/api/real-time/${tickers.split(',')[0]}?api_token=${API_KEY}&fmt=json&s=${tickers.split(',').slice(1).join(',')}`);
+    // bulk zwraca tablicę lub pojedynczy obiekt
+    const arr = Array.isArray(bulkJson) ? bulkJson : [bulkJson];
+    arr.forEach(item => { if (item?.code) bulkPrices[item.code] = item; });
+    log(`💹 Ceny pobrane: ${arr.length} spółek (1 zapytanie)`);
+  } catch(e) {
+    log(`💹 Błąd bulk cen: ${e.message}`);
+  }
+
   for (const s of PORTFOLIO) {
     const eodTicker = toEodTicker(s);
     log(`→ ${s.ticker} (${eodTicker})...`);
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 100));
 
     try {
-      // 1. Aktualna cena
-      const priceJson = await apiFetch(`https://eodhd.com/api/real-time/${eodTicker}?api_token=${API_KEY}&fmt=json`);
-      const currentPriceRaw = parseFloat(priceJson?.close || priceJson?.previousClose) || null;
+      // Cena z bulk (0 dodatkowych zapytań)
+      const priceData = bulkPrices[eodTicker] || null;
+      const currentPriceRaw = priceData ? parseFloat(priceData.close || priceData.previousClose) || null : null;
       const currentPrice = (s.currency === 'PLN' && plnToUsd && currentPriceRaw)
         ? currentPriceRaw * plnToUsd : currentPriceRaw;
       const avgCostUsd = (s.currency === 'PLN' && plnToUsd) ? s.avgCost * plnToUsd : s.avgCost;
 
-      // 2. Historia dywidend
-      const divList = await apiFetch(`https://eodhd.com/api/div/${eodTicker}?from=${from}&to=${today}&api_token=${API_KEY}&fmt=json`);
+      // Dywidendy — cache per ticker per dzień (tylko 1 zapytanie/ticker/dzień)
+      const cacheKey = `div_cache_${s.ticker}_${today}`;
+      let divList;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        divList = JSON.parse(cached);
+        log(`  📦 dywidendy z cache`);
+      } else {
+        divList = await apiFetch(`https://eodhd.com/api/div/${eodTicker}?from=${from}&to=${today}&api_token=${API_KEY}&fmt=json`);
+        localStorage.setItem(cacheKey, JSON.stringify(divList));
+      }
 
       let divEntry = null;
       let nextExDivDate = null;
