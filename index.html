@@ -564,6 +564,23 @@
     gap: 16px;
     flex-wrap: wrap;
   }
+
+  .m-editable {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 4px 6px;
+    margin: -4px -6px;
+    transition: background 0.15s;
+  }
+
+  .m-editable:active {
+    background: rgba(0,229,160,0.08);
+  }
+
+  .m-editable .m-label {
+    color: var(--accent);
+    opacity: 0.7;
+  }
 </style>
 </head>
 <body>
@@ -1231,9 +1248,13 @@ function renderMobileCards(data) {
         <div class="m-card-price">${priceStr}</div>
       </div>
       <div class="m-grid">
-        <div class="m-field">
-          <span class="m-label">Wartość pozycji</span>
-          <span class="m-value">${valueStr}</span>
+        <div class="m-field m-editable" data-ticker="${s.ticker}" data-field="shares">
+          <span class="m-label">Akcji ✎</span>
+          <span class="m-value m-edit-val">${s.shares.toFixed(4)}</span>
+        </div>
+        <div class="m-field m-editable" data-ticker="${s.ticker}" data-field="avgCost">
+          <span class="m-label">Cena zakupu ✎</span>
+          <span class="m-value m-edit-val">${s.currency === 'PLN' ? s.avgCost.toFixed(2) + ' zł' : '$' + s.avgCost.toFixed(2)}</span>
         </div>
         <div class="m-field">
           <span class="m-label">P&L</span>
@@ -1255,6 +1276,10 @@ function renderMobileCards(data) {
           <span class="m-label">Roczna (Twoja)</span>
           <span class="m-value" style="color:var(--accent)">${annualTotal > 0 ? '$' + annualTotal.toFixed(2) : '—'}</span>
         </div>
+        <div class="m-field">
+          <span class="m-label">Wartość pozycji</span>
+          <span class="m-value">${valueStr}</span>
+        </div>
       </div>
       <div class="m-divider"></div>
       <div class="m-dates">
@@ -1268,6 +1293,36 @@ function renderMobileCards(data) {
         </div>
       </div>
     `;
+    // Obsługa edycji na mobile
+    card.querySelectorAll('.m-editable').forEach(field => {
+      field.addEventListener('click', () => {
+        if (field.querySelector('input')) return;
+        const ticker = field.dataset.ticker;
+        const fieldName = field.dataset.field;
+        const stock = PORTFOLIO.find(s => s.ticker === ticker);
+        const currentVal = stock[fieldName];
+        const valSpan = field.querySelector('.m-edit-val');
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = 'any';
+        input.value = currentVal;
+        input.style.cssText = 'background:var(--bg);border:1px solid var(--accent);color:var(--accent);border-radius:4px;padding:4px 8px;font-family:"DM Mono",monospace;font-size:0.85rem;width:100%;margin-top:2px;';
+        valSpan.replaceWith(input);
+        input.focus();
+        input.select();
+        const save = () => {
+          const newVal = parseFloat(input.value);
+          if (!isNaN(newVal) && newVal > 0) {
+            stock[fieldName] = newVal;
+            savePortfolioOverrides();
+            renderTable(divData);
+          }
+        };
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { save(); input.blur(); } });
+      });
+    });
+
     container.appendChild(card);
   });
 }
