@@ -977,7 +977,7 @@ async function fetchFundamentals() {
   fundData = results;
   try { localStorage.setItem(cacheKey, JSON.stringify(results)); } catch(e) {}
   renderTable(divData);
-}}
+}
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderTable(data) {
@@ -1200,16 +1200,16 @@ function renderTable(data) {
         if (pe > 0 && pe < 15) color = 'var(--accent)';
         else if (pe >= 15 && pe < 25) color = 'var(--gold)';
         else if (pe >= 25) color = 'var(--red)';
-        return f.pe ? \`<span style="color:\${color};font-weight:500">\${f.pe}</span>\` : '<span style="color:var(--muted)">—</span>';
+        return f.pe ? `<span style="color:\${color};font-weight:500">\${f.pe}</span>` : '<span style="color:var(--muted)">—</span>';
       })()}</td>
       <td>${(() => {
         const f = fundData[s.ticker];
         if (!f || !f.payoutRatio) return '<span style="color:var(--muted)">—</span>';
         const pr = parseFloat(f.payoutRatio);
         let color = pr < 60 ? 'var(--accent)' : pr < 85 ? 'var(--gold)' : 'var(--red)';
-        return \`<span style="color:\${color}">\${f.payoutRatio}%</span>\`;
+        return `<span style="color:\${color}">\${f.payoutRatio}%</span>`;
       })()}</td>
-    \`;
+    `;
     tbody.appendChild(tr);
   });
 
