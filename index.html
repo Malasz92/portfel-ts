@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portfel TS</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0d;
+    --surface: #111318;
+    --surface2: #181c24;
+    --border: #1f2535;
+    --accent: #00e5a0;
+    --accent2: #0077ff;
+    --red: #ff4060;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --gold: #f5c842;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    position: relative;
+    z-index: 1;
+  }
+
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.4rem;
+    letter-spacing: 3px;
+    color: var(--accent);
+    line-height: 1;
+  }
+
+  .logo span { color: var(--text); }
+
+  .header-meta {
+    text-align: right;
+  }
+
+  .portfolio-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .last-updated {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--accent);
+  }
+
+  .stat-card.red::after { background: var(--red); }
+  .stat-card.blue::after { background: var(--accent2); }
+  .stat-card.gold::after { background: var(--gold); }
+
+  .stat-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .stat-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.2rem;
+    font-weight: 500;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn.primary {
+    background: var(--accent);
+    color: #000;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .btn.primary:hover {
+    background: #00ffb3;
+    color: #000;
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .api-key-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .api-key-section label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .api-key-section input {
+    flex: 1;
+    min-width: 200px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.82rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .api-key-section input:focus { border-color: var(--accent); }
+
+  .api-info {
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  .api-info a { color: var(--accent2); text-decoration: none; }
+
+  /* Table */
+  .table-wrapper {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  thead {
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  th {
+    padding: 9px 8px;
+    text-align: left;
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'DM Mono', monospace;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+
+  th:not(:first-child) { text-align: right; }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+  td {
+    padding: 9px 8px;
+    font-size: 0.78rem;
+    vertical-align: middle;
+  }
+
+  td:not(:first-child) {
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .stock-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stock-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.62rem;
+    flex-shrink: 0;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .stock-ticker {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .stock-full-name {
+    font-size: 0.63rem;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-new { background: rgba(0,229,160,0.15); color: var(--accent); border: 1px solid rgba(0,229,160,0.3); }
+  .badge-pending { background: rgba(245,200,66,0.1); color: var(--gold); border: 1px solid rgba(245,200,66,0.25); }
+  .badge-none { background: rgba(90,96,112,0.15); color: var(--muted); border: 1px solid var(--border); }
+  .badge-loading { background: rgba(0,119,255,0.1); color: var(--accent2); border: 1px solid rgba(0,119,255,0.25); }
+
+  .yield-positive { color: var(--accent); }
+  .yield-zero { color: var(--muted); }
+
+  /* Alert bar */
+  .alert-bar {
+    background: rgba(0,229,160,0.06);
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    display: none;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .alert-bar.show { display: flex; }
+
+  .pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(1.4); }
+  }
+
+  /* Row highlight for new dividend */
+  tr.new-div td { background: rgba(0,229,160,0.04); }
+
+  /* Loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+    height: 14px;
+    display: inline-block;
+    width: 80px;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 32px;
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    line-height: 1.8;
+  }
+
+  .auto-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-left: 12px;
+  }
+
+  .dot-live {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  /* Editable cells */
+  .editable-cell {
+    position: relative;
+    cursor: pointer;
+  }
+
+  .editable-cell .cell-display {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 5px;
+    transition: background 0.15s;
+  }
+
+  .editable-cell:hover .cell-display {
+    background: rgba(0,229,160,0.08);
+  }
+
+  .edit-icon {
+    opacity: 0;
+    font-size: 0.65rem;
+    color: var(--accent);
+    transition: opacity 0.15s;
+  }
+
+  .editable-cell:hover .edit-icon { opacity: 1; }
+
+  .editable-cell input.inline-input {
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 5px;
+    padding: 4px 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    width: 110px;
+    text-align: right;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0,229,160,0.1);
+  }
+
+  .save-hint {
+    font-size: 0.68rem;
+    color: var(--muted);
+    margin-top: 6px;
+    padding: 0 4px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  @media (max-width: 700px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+    header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .header-meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <div class="logo">PORTFEL<span> TS</span></div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-top:6px;font-family:'DM Mono',monospace;">
+        Portfolio Monitor · 10 spółek
+        <span class="auto-badge"><span class="dot-live"></span>auto-odświeżanie</span>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div class="portfolio-value" id="portfolioValue">15 125,84 USD</div>
+      <div class="last-updated" id="lastUpdated">— nie pobrano jeszcze danych —</div>
+    </div>
+  </header>
+
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="stat-label">Roczna dywidenda (est.)</div>
+      <div class="stat-value" id="totalAnnual">—</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="stat-label">Śr. yield (od zakupu)</div>
+      <div class="stat-value" id="avgYield">—</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Spółek z dywidendą</div>
+      <div class="stat-value" id="divCount">—</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Nowe ogłoszenia</div>
+      <div class="stat-value" id="newCount">—</div>
+    </div>
+  </div>
+
+  <div class="api-key-section" style="justify-content:space-between;">
+    <div>
+      <div style="font-size:0.8rem;color:var(--text);font-family:'DM Mono',monospace;">📡 Źródło danych: <span style="color:var(--accent)">EODHD</span></div>
+      <div style="font-size:0.72rem;color:var(--muted);margin-top:4px;">Dane pobierane automatycznie — nie wymaga klucza API</div>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn primary" onclick="fetchAll()">
+        <span class="spinner" id="spinner"></span>
+        ⟳ Pobierz dywidendy
+      </button>
+      <button class="btn" onclick="toggleAutoRefresh()" id="autoBtn">▶ Auto (15 min)</button>
+    </div>
+  </div>
+  <div class="save-hint" style="margin-bottom:14px;">✏️ Kliknij na liczbę akcji lub wartość pozycji w tabeli, aby edytować — zmiany zapisują się automatycznie.</div>
+
+  <div class="alert-bar" id="alertBar">
+    <span class="pulse"></span>
+    <span id="alertText"></span>
+  </div>
+
+  <!-- Debug box -->
+  <div id="debugBox" style="display:none;background:#0d1117;border:1px solid #1f2535;border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+    <div style="font-size:0.7rem;color:#5a6070;font-family:'DM Mono',monospace;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">📡 Log diagnostyczny API</div>
+    <pre id="debugLog" style="font-family:'DM Mono',monospace;font-size:0.72rem;color:#a0aab8;white-space:pre-wrap;line-height:1.6;margin:0;max-height:180px;overflow-y:auto;"></pre>
+  </div>
+
+  <div class="table-wrapper">
+    <div style="font-size:0.68rem;color:var(--muted);padding:8px 16px 0;font-family:'DM Mono',monospace;display:none;" id="scrollHint">← przewiń tabelę →</div>
+    <table>
+      <colgroup>
+        <col style="width:9%">   <!-- Spółka -->
+        <col style="width:9%">   <!-- Wartość -->
+        <col style="width:7%">   <!-- Akcji -->
+        <col style="width:8%">   <!-- Cena bieżąca -->
+        <col style="width:8%">   <!-- Cena zakupu -->
+        <col style="width:9%">   <!-- P&L -->
+        <col style="width:9%">   <!-- Dywidenda -->
+        <col style="width:8%">   <!-- Częstotliwość -->
+        <col style="width:9%">   <!-- Yield -->
+        <col style="width:8%">   <!-- Roczna -->
+        <col style="width:7%">   <!-- Nabycie praw -->
+        <col style="width:7%">   <!-- Dzień wypłaty -->
+        <col style="width:6%">   <!-- Status -->
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Spółka</th>
+          <th>Wartość pozycji</th>
+          <th>Akcji</th>
+          <th>Cena bieżąca</th>
+          <th>Cena zakupu</th>
+          <th>P&amp;L</th>
+          <th>Dywidenda / akcja</th>
+          <th>Częstotliwość</th>
+          <th>Yield (zakup / bież.)</th>
+          <th>Roczna (Twoja)</th>
+          <th>Nabycie praw (ex-div)</th>
+          <th>Dzień wypłaty</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    DividendWatch · dane: <a href="https://eodhd.com" style="color:var(--accent)">EODHD</a> · odświeżaj ręcznie lub automatycznie co 15 minut<br>
+    Dane mają charakter informacyjny, nie stanowią porady inwestycyjnej.
+  </div>
+</div>
+
+<script>
+// ─── Portfolio data (defaults) ────────────────────────────────────────────────
+const PORTFOLIO_DEFAULTS = [
+  { ticker: 'VZ',     name: 'Verizon',             shares: 71.4265,  value: 3656.32, avgCost: 45.48, color: '#cd040b', bg: '#2a0a0b' },
+  { ticker: 'AGNC',   name: 'AGNC Investment',     shares: 320.6452, value: 3491.82, avgCost: 11.37, color: '#1a6bcd', bg: '#0a1628' },
+  { ticker: 'HESM',   name: 'Hess Midstream',      shares: 60.1468,  value: 2336.70, avgCost: 37.49, color: '#2d7d46', bg: '#0a1810' },
+  { ticker: 'MAIN',   name: 'Main Street Cap.',    shares: 33.7175,  value: 1963.35, avgCost: 59.48, color: '#d4a017', bg: '#1c1608' },
+  { ticker: 'VICI',   name: 'VICI Properties',     shares: 61.2059,  value: 1816.59, avgCost: 29.43, color: '#111111', bg: '#181818' },
+  { ticker: 'O',      name: 'Realty Income',       shares: 16.7271,  value: 1083.58, avgCost: 66.34, color: '#e85d04', bg: '#1c0e04' },
+  { ticker: 'MSFT',   name: 'Microsoft',           shares: 0.6338,   value: 260.22,  avgCost: 395.12,color: '#00a4ef', bg: '#031624' },
+  { ticker: 'GOOGL',  name: 'Alphabet',            shares: 0.8623,   value: 259.39,  avgCost: 307.74,color: '#34a853', bg: '#041408' },
+  { ticker: 'NVO',    name: 'Novo Nordisk',        shares: 6.6013,   value: 257.71,  avgCost: 59.75, color: '#005fa3', bg: '#03121e' },
+  { ticker: 'ULG.WA', name: 'Ultimate',            shares: 36200,    value: 434762,  avgCost: 12.01, color: '#4caf50', bg: '#0a1a0a', currency: 'PLN' },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let divData = {};
+let autoInterval = null;
+let autoOn = false;
+let globalPlnToUsd = null; // kurs PLN→USD pobierany przy każdym fetch
+const CACHE_KEY = 'divwatch_cache_v2';
+const KEY_STORAGE = 'divwatch_apikey';
+const PORTFOLIO_STORAGE = 'divwatch_portfolio_v1';
+
+// Load portfolio (with user edits persisted)
+let PORTFOLIO = loadPortfolio();
+
+function loadPortfolio() {
+  try {
+    const saved = localStorage.getItem(PORTFOLIO_STORAGE);
+    if (saved) {
+      const overrides = JSON.parse(saved); // { ticker: { shares, value } }
+      return PORTFOLIO_DEFAULTS.map(s => ({
+        ...s,
+        shares:  overrides[s.ticker]?.shares  ?? s.shares,
+        value:   overrides[s.ticker]?.value   ?? s.value,
+        avgCost: overrides[s.ticker]?.avgCost ?? s.avgCost,
+      }));
+    }
+  } catch(e) {}
+  return PORTFOLIO_DEFAULTS.map(s => ({...s}));
+}
+
+function savePortfolioOverrides() {
+  const overrides = {};
+  PORTFOLIO.forEach(s => { overrides[s.ticker] = { shares: s.shares, value: s.value, avgCost: s.avgCost }; });
+  localStorage.setItem(PORTFOLIO_STORAGE, JSON.stringify(overrides));
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.innerWidth < 1100) document.getElementById('scrollHint').style.display = 'block';
+
+  // Pokaż cache od razu jeśli jest
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      divData = parsed.data;
+      renderTable(parsed.data);
+      document.getElementById('lastUpdated').textContent = 'Cache z: ' + parsed.ts;
+    } catch(e) {}
+  } else {
+    renderTable(null);
+  }
+
+  // Automatycznie włącz auto-odświeżanie i pobierz dane od razu
+  toggleAutoRefresh();
+});
+
+// ─── Fetch via EODHD API ──────────────────────────────
+async function fetchAll() {
+  const btn = document.querySelector('.btn.primary');
+  const spinner = document.getElementById('spinner');
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  document.getElementById('lastUpdated').textContent = 'Pobieranie danych...';
+  document.getElementById('debugBox').style.display = 'block';
+  document.getElementById('debugLog').textContent = '';
+
+  const API_KEY = '69b290a9449476.51702783';
+
+  function log(msg) {
+    const el = document.getElementById('debugLog');
+    el.textContent += msg + '\n';
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // EODHD ticker format: VZ.US, AGNC.US, ULG.WAW (Warsaw)
+  function toEodTicker(s) {
+    if (s.currency === 'PLN') {
+      // ULG.WA → ULG.WAW (EODHD format for Warsaw Stock Exchange)
+      return s.ticker.replace('.WA', '.WAW');
+    }
+    return `${s.ticker}.US`;
+  }
+
+  // ── Pobierz kurs PLN/USD z EODHD ─────────────────────────────────────────
+  let plnToUsd = null;
+  try {
+    const fxUrl = `https://eodhd.com/api/real-time/USDPLN.FOREX?api_token=${API_KEY}&fmt=json`;
+    const fxRes = await fetch(fxUrl);
+    const fxJson = await fxRes.json();
+    const usdPln = parseFloat(fxJson?.close || fxJson?.previousClose);
+    if (usdPln > 0) plnToUsd = 1 / usdPln;
+    log(`💱 Kurs PLN→USD: ${plnToUsd ? plnToUsd.toFixed(4) : 'błąd'}`);
+  } catch(e) {
+    log(`💱 Błąd kursu PLN/USD: ${e.message} — używam 0.25`);
+    plnToUsd = 0.25;
+  }
+  globalPlnToUsd = plnToUsd;
+
+  const results = {};
+  const today = new Date().toISOString().split('T')[0];
+  const fromDate = new Date();
+  fromDate.setFullYear(fromDate.getFullYear() - 2);
+  const from = fromDate.toISOString().split('T')[0];
+
+  for (const s of PORTFOLIO) {
+    const eodTicker = toEodTicker(s);
+    log(`→ ${s.ticker} (${eodTicker})...`);
+    await new Promise(r => setTimeout(r, 200));
+
+    try {
+      // 1. Aktualna cena
+      const priceUrl = `https://eodhd.com/api/real-time/${eodTicker}?api_token=${API_KEY}&fmt=json`;
+      const priceRes = await fetch(priceUrl);
+      const priceJson = await priceRes.json();
+      const currentPriceRaw = parseFloat(priceJson?.close || priceJson?.previousClose) || null;
+      const currentPrice = (s.currency === 'PLN' && plnToUsd && currentPriceRaw)
+        ? currentPriceRaw * plnToUsd : currentPriceRaw;
+      const avgCostUsd = (s.currency === 'PLN' && plnToUsd) ? s.avgCost * plnToUsd : s.avgCost;
+
+      // 2. Historia dywidend (ostatnie 2 lata) — zawiera ex-date, paymentDate, declarationDate
+      const divUrl = `https://eodhd.com/api/div/${eodTicker}?from=${from}&to=${today}&api_token=${API_KEY}&fmt=json`;
+      const divRes = await fetch(divUrl);
+      const divList = await divRes.json();
+
+      let divEntry = null;
+      let nextExDivDate = null;
+      let nextPaymentDate = null;
+
+      if (Array.isArray(divList) && divList.length > 0) {
+        // Posortuj malejąco po dacie
+        const sorted = [...divList].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const latest = sorted[0];
+        const rawAmount = parseFloat(latest.value || latest.amount || 0);
+        const amountUsd = (s.currency === 'PLN' && plnToUsd) ? rawAmount * plnToUsd : rawAmount;
+
+        // Ex-div date to latest.date w EODHD
+        nextExDivDate = latest.date || null;
+        nextPaymentDate = latest.paymentDate || null;
+
+        divEntry = {
+          dividend: amountUsd,
+          dividendRaw: rawAmount,
+          currency: s.currency || 'USD',
+          plnToUsd,
+          declarationDate: latest.declarationDate || latest.date,
+          date: latest.date,
+          _history: sorted.slice(0, 8).map(d => ({
+            dividend: s.currency === 'PLN' && plnToUsd ? parseFloat(d.value||d.amount||0) * plnToUsd : parseFloat(d.value||d.amount||0),
+            date: d.date
+          }))
+        };
+
+        log(`  ✓ div: ${s.currency==='PLN' ? rawAmount.toFixed(4)+' PLN →' : ''} $${amountUsd.toFixed(4)} | ex: ${nextExDivDate} | wypłata: ${nextPaymentDate||'—'} | cena: ${currentPriceRaw?.toFixed(2)||'?'}${s.currency==='PLN'?' zł':'$'}`);
+      } else {
+        log(`  ✗ brak dywidend | cena: ${currentPriceRaw?.toFixed(2)||'?'}${s.currency==='PLN'?' zł':'$'}`);
+      }
+
+      results[s.ticker] = {
+        ...(divEntry || { dividend: 0, plnToUsd, currency: s.currency || 'USD' }),
+        currentPrice,
+        currentPriceRaw,
+        avgCostUsd,
+        nextExDivDate,
+        nextPaymentDate,
+      };
+
+    } catch(e) {
+      log(`  ✗ błąd: ${e.message}`);
+      results[s.ticker] = null;
+    }
+  }
+
+  divData = results;
+  const ts = new Date().toLocaleString('pl-PL');
+  localStorage.setItem(CACHE_KEY, JSON.stringify({ data: results, ts }));
+  document.getElementById('lastUpdated').textContent = 'Zaktualizowano: ' + ts;
+
+  renderTable(results);
+  checkNewAnnouncements(results);
+
+  btn.disabled = false;
+  spinner.style.display = 'none';
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function renderTable(data) {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  let totalAnnual = 0;
+  let weightedYieldSum = 0;  // Σ(yield × costBasis)
+  let totalCostBasis = 0;    // Σ(costBasis) — tylko spółek z dywidendą
+  let divCount = 0;
+
+  PORTFOLIO.forEach(s => {
+    const d = data ? data[s.ticker] : null;
+    const tr = document.createElement('tr');
+
+    // frequency from API field or history calculation
+    let freq = '—';
+    let freqMult = 0;
+    if (d && d.frequency) {
+      const f = d.frequency.toLowerCase();
+      if (f.includes('month') || f === 'monthly') { freq = 'Miesięczna'; freqMult = 12; }
+      else if (f.includes('quarter') || f === 'quarterly') { freq = 'Kwartalna'; freqMult = 4; }
+      else if (f.includes('semi') || f === 'semi-annual') { freq = 'Półroczna'; freqMult = 2; }
+      else if (f.includes('annual') || f === 'annual') { freq = 'Roczna'; freqMult = 1; }
+    } else if (d && d._history && d._history.length >= 2) {
+      const dates = d._history.map(x => new Date(x.declarationDate||x.date)).filter(Boolean).sort((a,b)=>b-a);
+      if (dates.length >= 2) {
+        const gaps = [];
+        for (let i=0; i<dates.length-1; i++) {
+          gaps.push((dates[i] - dates[i+1]) / (1000*60*60*24));
+        }
+        const avgGap = gaps.reduce((a,b)=>a+b,0)/gaps.length;
+        if (avgGap < 45) { freq = 'Miesięczna'; freqMult = 12; }
+        else if (avgGap < 100) { freq = 'Kwartalna'; freqMult = 4; }
+        else if (avgGap < 200) { freq = 'Półroczna'; freqMult = 2; }
+        else { freq = 'Roczna'; freqMult = 1; }
+      }
+    }
+
+    const divAmt = d ? parseFloat(d.dividend || d.adjDividend || 0) : 0;
+    const annualPerShare = freqMult ? divAmt * freqMult : divAmt;
+    const annualTotal = annualPerShare * s.shares;
+
+    // Kurs PLN→USD
+    const plnRate = (d && d.plnToUsd) ? d.plnToUsd : globalPlnToUsd;
+
+    // Ceny
+    const currentPrice    = d?.currentPrice    || null;  // USD
+    const currentPriceRaw = d?.currentPriceRaw || null;  // oryginalna waluta
+    const avgCostUsd      = (s.currency === 'PLN' && plnRate) ? s.avgCost * plnRate : s.avgCost;
+
+    // Yield on Cost — od ceny zakupu
+    const costBasis   = avgCostUsd * s.shares;
+    const yieldOnCost = costBasis > 0 ? (annualTotal / costBasis) * 100 : 0;
+
+    // Yield on Market — od ceny bieżącej
+    const marketValue   = currentPrice
+      ? currentPrice * s.shares
+      : (s.currency === 'PLN' && plnRate ? s.value * plnRate : s.value);
+    const yieldOnMarket = marketValue > 0 ? (annualTotal / marketValue) * 100 : 0;
+
+    if (divAmt > 0) {
+      totalAnnual      += annualTotal;
+      weightedYieldSum += yieldOnCost * costBasis;  // yield ważony wartością pozycji
+      totalCostBasis   += costBasis;
+      divCount++;
+    }
+
+    // Status badge
+    let statusHtml;
+    if (!data) {
+      statusHtml = `<span class="badge badge-none">—</span>`;
+    } else if (!d) {
+      statusHtml = `<span class="badge badge-none">Brak danych</span>`;
+    } else {
+      const declDate = d.declarationDate || d.date || '';
+      const isRecent = declDate && (new Date() - new Date(declDate)) < 1000*60*60*24*30;
+      if (isRecent) {
+        tr.classList.add('new-div');
+        statusHtml = `<span class="badge badge-new">🆕 Nowe</span>`;
+      } else if (d.paymentDate && new Date(d.paymentDate) > new Date()) {
+        statusHtml = `<span class="badge badge-pending">Oczekuje</span>`;
+      } else {
+        statusHtml = `<span class="badge badge-none">Historyczne</span>`;
+      }
+    }
+
+    // Ostatnie ogłoszenie — tylko data ogłoszenia dywidendy (declarationDate z historii)
+    const declDate = d?._history?.[0]?.date || d?.declarationDate || d?.date || null;
+    const declStr = !data
+      ? '<span class="skeleton"></span>'
+      : (declDate ? declDate : '<span style="color:var(--muted)">—</span>');
+
+    // Dywidenda
+    let divStr;
+    if (!data) {
+      divStr = '<span class="skeleton"></span>';
+    } else if (divAmt > 0) {
+      if (s.currency === 'PLN' && d && d.dividendRaw) {
+        divStr = `<span style="color:var(--muted);font-size:0.78rem">${d.dividendRaw.toFixed(4)} zł →</span> $${divAmt.toFixed(4)}`;
+      } else {
+        divStr = `$${divAmt.toFixed(4)}`;
+      }
+    } else {
+      divStr = '<span style="color:var(--muted)">—</span>';
+    }
+
+    // Yield — oba
+    let yieldStr;
+    if (yieldOnCost > 0) {
+      yieldStr = `<span class="yield-positive">${yieldOnCost.toFixed(2)}%</span>`
+        + `<br><span style="color:var(--muted);font-size:0.72rem">bież: ${yieldOnMarket.toFixed(2)}%</span>`;
+    } else {
+      yieldStr = '<span class="yield-zero">—</span>';
+    }
+
+    // Roczna
+    const annualStr = annualTotal > 0
+      ? `$${annualTotal.toFixed(2)}`
+      : '<span style="color:var(--muted)">—</span>';
+
+    // Wartość pozycji dynamiczna
+    let valueDisplay;
+    if (s.currency === 'PLN') {
+      const valuePln = currentPriceRaw ? currentPriceRaw * s.shares : s.value;
+      const valueUsd = plnRate ? valuePln * plnRate : null;
+      valueDisplay = `${valuePln.toLocaleString('pl-PL', {minimumFractionDigits:2})} zł`
+        + (valueUsd ? `<br><span style="color:var(--muted);font-size:0.75rem">≈ $${valueUsd.toLocaleString('en-US',{minimumFractionDigits:2})}</span>` : '');
+    } else {
+      const val = currentPrice ? currentPrice * s.shares : s.value;
+      valueDisplay = `$${val.toLocaleString('en-US', {minimumFractionDigits:2})}`;
+    }
+
+    // Cena bieżąca
+    let priceStr;
+    if (!data) {
+      priceStr = '<span class="skeleton"></span>';
+    } else if (currentPriceRaw) {
+      priceStr = s.currency === 'PLN'
+        ? `${currentPriceRaw.toFixed(2)} zł<br><span style="color:var(--muted);font-size:0.75rem">≈ $${currentPrice.toFixed(2)}</span>`
+        : `$${currentPrice.toFixed(2)}`;
+    } else {
+      priceStr = '<span style="color:var(--muted)">—</span>';
+    }
+
+    // Cena zakupu
+    let avgCostStr;
+    if (s.currency === 'PLN') {
+      avgCostStr = `${s.avgCost.toFixed(2)} zł<br><span style="color:var(--muted);font-size:0.75rem">≈ $${avgCostUsd.toFixed(2)}</span>`;
+    } else {
+      avgCostStr = `$${s.avgCost.toFixed(2)}`;
+    }
+
+    // P&L
+    let plStr = '<span style="color:var(--muted)">—</span>';
+    if (currentPrice && avgCostUsd) {
+      const plPct = ((currentPrice - avgCostUsd) / avgCostUsd) * 100;
+      const plAbs = (currentPrice - avgCostUsd) * s.shares;
+      const plColor = plPct >= 0 ? 'var(--accent)' : 'var(--red)';
+      const plSign  = plPct >= 0 ? '+' : '';
+      plStr = `<span style="color:${plColor}">${plSign}$${plAbs.toFixed(2)}<br><span style="font-size:0.75rem">${plSign}${plPct.toFixed(2)}%</span></span>`;
+    }
+
+    tr.innerHTML = `
+      <td>
+        <div class="stock-name">
+          <div class="stock-icon" style="background:${s.bg};color:${s.color};border:1px solid ${s.color}33">${s.ticker.substring(0,4)}</div>
+          <div>
+            <div class="stock-ticker">${s.ticker}</div>
+            <div class="stock-full-name">${s.name}</div>
+          </div>
+        </div>
+      </td>
+      <td class="editable-cell" data-ticker="${s.ticker}" data-field="value">
+        <div class="cell-display">${valueDisplay} <span class="edit-icon">✎</span></div>
+      </td>
+      <td class="editable-cell" data-ticker="${s.ticker}" data-field="shares">
+        <div class="cell-display">${s.shares.toFixed(4)} <span class="edit-icon">✎</span></div>
+      </td>
+      <td>${priceStr}</td>
+      <td class="editable-cell" data-ticker="${s.ticker}" data-field="avgCost">
+        <div class="cell-display">${avgCostStr} <span class="edit-icon">✎</span></div>
+      </td>
+      <td>${plStr}</td>
+      <td>${divStr}</td>
+      <td style="color:var(--muted);font-size:0.8rem">${freq}</td>
+      <td>${yieldStr}</td>
+      <td style="color:var(--accent)">${annualStr}</td>
+      <td>
+        ${(() => {
+          const exDiv = d?.nextExDivDate;
+          const histDate = declStr && declStr !== '—' && !declStr.includes('skeleton') ? declStr : null;
+          if (exDiv) {
+            const isFuture = new Date(exDiv) > new Date();
+            return isFuture
+              ? `<span style="color:var(--accent);font-weight:500" title="Musisz mieć akcje przed tą datą aby otrzymać dywidendę">📋 ${exDiv}</span>`
+              : `<span style="color:var(--muted)" title="Ostatni dzień nabycia praw do dywidendy">${exDiv}</span>`;
+          } else if (histDate) {
+            return `<span style="color:var(--muted)" title="Ostatni dzień nabycia praw do dywidendy">${histDate}</span>`;
+          }
+          return '<span style="color:var(--muted)">—</span>';
+        })()}
+      </td>
+      <td>
+        ${(() => {
+          const pay = d?.nextPaymentDate;
+          if (!pay) return '<span style="color:var(--muted)">—</span>';
+          const isFuture = new Date(pay) > new Date();
+          return isFuture
+            ? `<span style="color:var(--gold);font-weight:500">💰 ${pay}</span>`
+            : `<span style="color:var(--muted)">${pay}</span>`;
+        })()}
+      </td>
+      <td>${statusHtml}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Attach editable cell listeners
+  tbody.querySelectorAll('.editable-cell').forEach(cell => {
+    cell.addEventListener('click', () => startEdit(cell));
+  });
+
+  // Update stats
+  if (data) {
+    // Suma wartości portfela — PLN przeliczone na USD
+    let totalPortfolioUsd = 0;
+    PORTFOLIO.forEach(s => {
+      if (s.currency === 'PLN') {
+        const rate = (data[s.ticker] && data[s.ticker].plnToUsd) ? data[s.ticker].plnToUsd : globalPlnToUsd;
+        if (rate) totalPortfolioUsd += s.value * rate;
+      } else {
+        totalPortfolioUsd += s.value;
+      }
+    });
+    document.getElementById('portfolioValue').textContent = '$' + totalPortfolioUsd.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+    const weightedAvgYield = totalCostBasis > 0 ? weightedYieldSum / totalCostBasis : 0;
+    document.getElementById('totalAnnual').textContent = totalAnnual > 0 ? `$${totalAnnual.toFixed(2)}` : '—';
+    document.getElementById('avgYield').textContent = weightedAvgYield > 0 ? `${weightedAvgYield.toFixed(2)}%` : '—';
+    document.getElementById('divCount').textContent = `${divCount} / ${PORTFOLIO.length}`;
+    document.getElementById('newCount').textContent = document.querySelectorAll('tr.new-div').length.toString();
+  }
+}
+
+// ─── Inline Edit ──────────────────────────────────────────────────────────────
+function startEdit(cell) {
+  if (cell.querySelector('input')) return; // already editing
+  const ticker = cell.dataset.ticker;
+  const field  = cell.dataset.field;
+  const stock  = PORTFOLIO.find(s => s.ticker === ticker);
+  const currentVal = stock[field];
+
+  const display = cell.querySelector('.cell-display');
+  display.style.display = 'none';
+
+  const input = document.createElement('input');
+  input.className = 'inline-input';
+  input.type = 'number';
+  input.step = 'any';
+  input.min = '0';
+  input.value = currentVal;
+  cell.appendChild(input);
+  input.focus();
+  input.select();
+
+  function commit() {
+    const newVal = parseFloat(input.value);
+    if (!isNaN(newVal) && newVal >= 0) {
+      stock[field] = newVal;
+      savePortfolioOverrides();
+      renderTable(Object.keys(divData).length ? divData : null);
+    } else {
+      display.style.display = '';
+      input.remove();
+    }
+  }
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') {
+      display.style.display = '';
+      input.remove();
+    }
+  });
+}
+
+// ─── Alert ────────────────────────────────────────────────────────────────────
+function checkNewAnnouncements(data) {
+  const newOnes = [];
+  Object.keys(data).forEach(ticker => {
+    const d = data[ticker];
+    if (!d) return;
+    const declDate = d.declarationDate || d.date || '';
+    if (declDate && (new Date() - new Date(declDate)) < 1000*60*60*24*7) {
+      newOnes.push(`${ticker} ($${parseFloat(d.dividend||0).toFixed(4)})`);
+    }
+  });
+  const bar = document.getElementById('alertBar');
+  if (newOnes.length > 0) {
+    document.getElementById('alertText').textContent = `Nowe ogłoszenia dywidend (ostatnie 7 dni): ${newOnes.join(', ')}`;
+    bar.classList.add('show');
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+// ─── Auto-refresh ─────────────────────────────────────────────────────────────
+function toggleAutoRefresh() {
+  const btn = document.getElementById('autoBtn');
+  if (autoOn) {
+    clearInterval(autoInterval);
+    autoInterval = null;
+    autoOn = false;
+    btn.textContent = '▶ Auto (15 min)';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  } else {
+    autoOn = true;
+    btn.textContent = '⏸ Auto ON';
+    btn.style.borderColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+    fetchAll();
+    autoInterval = setInterval(fetchAll, 15 * 60 * 1000);
+  }
+}
+</script>
+</body>
+</html>
