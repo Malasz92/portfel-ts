@@ -771,6 +771,14 @@ window.addEventListener('DOMContentLoaded', () => {
     renderTable(null);
   }
 
+  // Wyczyść stary cache fundamentals żeby wymusić nowe pobranie
+  const todayStr = new Date().toISOString().split('T')[0];
+  for (const key of Object.keys(localStorage)) {
+    if (key.startsWith(FUND_CACHE_KEY) && !key.endsWith(todayStr)) {
+      localStorage.removeItem(key);
+    }
+  }
+
   // Automatycznie włącz auto-odświeżanie i pobierz dane od razu
   toggleAutoRefresh();
 });
@@ -926,41 +934,50 @@ async function fetchAll() {
   spinner.style.display = 'none';
   fetchFundamentals();
 }
-// ─── Fundamentals (FMP) ───────────────────────────────────────────────────────
+// ─── Fundamentals (FMP) ─────────────────────────────────────────────
 async function fetchFundamentals() {
   const today = new Date().toISOString().split('T')[0];
   const cacheKey = FUND_CACHE_KEY + '_' + today;
   const cached = localStorage.getItem(cacheKey);
   if (cached) {
-    try { fundData = JSON.parse(cached); renderTable(divData); return; } catch(e) {}
+    try {
+      fundData = JSON.parse(cached);
+      renderTable(divData);
+      return;
+    } catch(e) {}
   }
 
   const usTickers = PORTFOLIO.filter(s => s.currency !== 'PLN').map(s => s.ticker);
   const results = {};
 
-  const WORKER = 'https://lingering-boat-4035.staniszewski-tomek.workers.dev/?url=';
   for (const ticker of usTickers) {
     try {
-      const url = `https://financialmodelingprep.com/api/v3/key-metrics-ttm/${ticker}?apikey=${FMP_KEY}`;
-      const res = await fetch(WORKER + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+      // ratios-ttm ma peRatioTTM, payoutRatioTTM i jest na free planie
+      const url = 'https://financialmodelingprep.com/api/v3/ratios-ttm/' + ticker + '?apikey=' + FMP_KEY;
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const json = await res.json();
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch(e) { continue; }
       if (json && json[0]) {
         const m = json[0];
+        const pe = parseFloat(m.peRatioTTM);
+        const pr = parseFloat(m.payoutRatioTTM);
         results[ticker] = {
-          pe: m.peRatioTTM ? parseFloat(m.peRatioTTM).toFixed(1) : null,
-          revenuePerShare: m.revenuePerShareTTM ? parseFloat(m.revenuePerShareTTM).toFixed(2) : null,
-          payoutRatio: m.payoutRatioTTM ? (parseFloat(m.payoutRatioTTM) * 100).toFixed(1) : null,
+          pe: (!isNaN(pe) && pe > 0 && pe < 999) ? pe.toFixed(1) : null,
+          payoutRatio: (!isNaN(pr) && pr > 0) ? (pr * 100).toFixed(1) : null,
         };
       }
-    } catch(e) {}
-    await new Promise(r => setTimeout(r, 200));
+    } catch(e) {
+      console.warn('FMP error for ' + ticker + ':', e.message);
+    }
+    await new Promise(r => setTimeout(r, 300));
   }
 
   fundData = results;
-  localStorage.setItem(cacheKey, JSON.stringify(results));
+  try { localStorage.setItem(cacheKey, JSON.stringify(results)); } catch(e) {}
   renderTable(divData);
-}
+}}
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderTable(data) {
