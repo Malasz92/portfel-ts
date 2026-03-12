@@ -660,7 +660,13 @@ async function fetchAll() {
   document.getElementById('debugBox').style.display = 'block';
   document.getElementById('debugLog').textContent = '';
 
-  const API_KEY = '69b290a9449476.51702783';
+  const WORKER = 'https://lingering-boat-4035.staniszewski-tomek.workers.dev/?url=';
+
+  async function apiFetch(url) {
+    const res = await fetch(WORKER + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
 
   function log(msg) {
     const el = document.getElementById('debugLog');
@@ -677,12 +683,12 @@ async function fetchAll() {
     return `${s.ticker}.US`;
   }
 
+  const API_KEY = '69b290a9449476.51702783';
+
   // ── Pobierz kurs PLN/USD z EODHD ─────────────────────────────────────────
   let plnToUsd = null;
   try {
-    const fxUrl = `https://eodhd.com/api/real-time/USDPLN.FOREX?api_token=${API_KEY}&fmt=json`;
-    const fxRes = await fetch(fxUrl);
-    const fxJson = await fxRes.json();
+    const fxJson = await apiFetch(`https://eodhd.com/api/real-time/USDPLN.FOREX?api_token=${API_KEY}&fmt=json`);
     const usdPln = parseFloat(fxJson?.close || fxJson?.previousClose);
     if (usdPln > 0) plnToUsd = 1 / usdPln;
     log(`💱 Kurs PLN→USD: ${plnToUsd ? plnToUsd.toFixed(4) : 'błąd'}`);
@@ -705,18 +711,14 @@ async function fetchAll() {
 
     try {
       // 1. Aktualna cena
-      const priceUrl = `https://eodhd.com/api/real-time/${eodTicker}?api_token=${API_KEY}&fmt=json`;
-      const priceRes = await fetch(priceUrl);
-      const priceJson = await priceRes.json();
+      const priceJson = await apiFetch(`https://eodhd.com/api/real-time/${eodTicker}?api_token=${API_KEY}&fmt=json`);
       const currentPriceRaw = parseFloat(priceJson?.close || priceJson?.previousClose) || null;
       const currentPrice = (s.currency === 'PLN' && plnToUsd && currentPriceRaw)
         ? currentPriceRaw * plnToUsd : currentPriceRaw;
       const avgCostUsd = (s.currency === 'PLN' && plnToUsd) ? s.avgCost * plnToUsd : s.avgCost;
 
-      // 2. Historia dywidend (ostatnie 2 lata) — zawiera ex-date, paymentDate, declarationDate
-      const divUrl = `https://eodhd.com/api/div/${eodTicker}?from=${from}&to=${today}&api_token=${API_KEY}&fmt=json`;
-      const divRes = await fetch(divUrl);
-      const divList = await divRes.json();
+      // 2. Historia dywidend
+      const divList = await apiFetch(`https://eodhd.com/api/div/${eodTicker}?from=${from}&to=${today}&api_token=${API_KEY}&fmt=json`);
 
       let divEntry = null;
       let nextExDivDate = null;
