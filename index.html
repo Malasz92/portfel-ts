@@ -771,12 +771,9 @@ window.addEventListener('DOMContentLoaded', () => {
     renderTable(null);
   }
 
-  // Wyczyść stary cache fundamentals żeby wymusić nowe pobranie
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Wyczyść cały cache fundamentals żeby wymusić nowe pobranie
   for (const key of Object.keys(localStorage)) {
-    if (key.startsWith(FUND_CACHE_KEY) && !key.endsWith(todayStr)) {
-      localStorage.removeItem(key);
-    }
+    if (key.startsWith(FUND_CACHE_KEY)) localStorage.removeItem(key);
   }
 
   // Automatycznie włącz auto-odświeżanie i pobierz dane od razu
@@ -962,8 +959,8 @@ async function fetchFundamentals() {
       if (json && json[0]) {
         const m = json[0];
         // stable API uses peRatioTTM or priceEarningsRatioTTM
-        const peRaw = m.peRatioTTM ?? m.priceEarningsRatioTTM ?? m.peRatio;
-        const prRaw = m.payoutRatioTTM ?? m.payoutRatio ?? m.dividendPayoutRatioTTM;
+        const peRaw = m.priceToEarningsRatioTTM ?? m.peRatioTTM ?? m.priceEarningsRatioTTM;
+        const prRaw = m.dividendPayoutRatioTTM ?? m.payoutRatioTTM ?? m.payoutRatio;
         const pe = parseFloat(peRaw);
         const pr = parseFloat(prRaw);
         results[ticker] = {
