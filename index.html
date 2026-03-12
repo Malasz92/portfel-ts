@@ -473,18 +473,15 @@
   }
 
   /* ── Mobile card view ───────────────────────────────────────────────────── */
-  @media (max-width: 900px) {
-    .table-wrapper { display: none; }
-    .mobile-cards { display: block; }
-  }
-  @media (min-width: 901px) {
-    .mobile-cards { display: none; }
-  }
-
   .mobile-cards {
     display: none;
     flex-direction: column;
     gap: 10px;
+  }
+
+  @media (max-width: 900px) {
+    .table-wrapper { display: none !important; }
+    .mobile-cards { display: flex !important; }
   }
 
   .m-card {
