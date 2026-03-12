@@ -722,7 +722,7 @@ let divData = {};
 let autoInterval = null;
 let fundData = {}; // P/E TTM, Revenue TTM z FMP
 const FMP_KEY = '4FaHwHQleTQqe9F5EelxShLBxEON0n75';
-const FUND_CACHE_KEY = 'divwatch_fund_cache_v4';
+const FUND_CACHE_KEY = 'divwatch_fund_cache_v5';
 let autoOn = false;
 let globalPlnToUsd = null; // kurs PLN→USD pobierany przy każdym fetch
 const CACHE_KEY = 'divwatch_cache_v2';
@@ -958,22 +958,24 @@ async function fetchFundamentals() {
       try { json = JSON.parse(text); } catch(e) { continue; }
       if (json && json[0]) {
         const m = json[0];
-        // stable API uses peRatioTTM or priceEarningsRatioTTM
+        console.log(ticker, 'FMP response:', JSON.stringify(m));
+        // Try all known field name variants
         const peRaw = m.priceToEarningsRatioTTM ?? m.peRatioTTM ?? m.priceEarningsRatioTTM;
         const pbRaw = m.priceToBookRatioTTM ?? m.priceBookValueRatioTTM ?? m.pbRatioTTM;
-        const prRaw = m.dividendPayoutRatioTTM ?? m.payoutRatioTTM ?? m.payoutRatio;
+        const prRaw = m.dividendPayoutRatioTTM ?? m.payoutRatioTTM ?? m.dividendPayoutRatio;
         const pe = parseFloat(peRaw);
         const pb = parseFloat(pbRaw);
         const pr = parseFloat(prRaw);
         const peValid = !isNaN(pe) && pe > 0 && pe < 9999;
         const pbValid = !isNaN(pb) && pb > 0 && pb < 999;
+        const prValid = !isNaN(pr) && pr > 0;
         results[ticker] = {
           pe: peValid ? pe.toFixed(1) : null,
           pb: pbValid ? pb.toFixed(2) : null,
           peLabel: peValid ? 'C/Z' : (pbValid ? 'C/WK' : null),
-          payoutRatio: (!isNaN(pr) && pr > 0) ? (pr > 1 ? pr.toFixed(1) : (pr * 100).toFixed(1)) : null,
+          payoutRatio: prValid ? (pr > 1 ? pr.toFixed(1) : (pr * 100).toFixed(1)) : null,
         };
-        console.log(ticker, 'pe:', pe, 'pb:', pb, 'pr:', pr);
+        console.log(ticker, '=> pe:', pe, 'pb:', pb, 'pr:', pr);
       }
     } catch(e) {
       console.warn('FMP error for ' + ticker + ':', e.message);
