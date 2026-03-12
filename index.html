@@ -686,7 +686,7 @@
           <th>Nabycie praw (ex-div)</th>
           <th>Dzień wypłaty</th>
           <th>Status</th>
-          <th title="Cena/Zysk TTM z FMP">C/Z TTM</th>
+          <th title="C/Z TTM lub C/WK dla REIT">C/Z · C/WK</th>
           <th title="Payout Ratio TTM">Wypłata %</th>
         </tr>
       </thead>
@@ -722,7 +722,7 @@ let divData = {};
 let autoInterval = null;
 let fundData = {}; // P/E TTM, Revenue TTM z FMP
 const FMP_KEY = '4FaHwHQleTQqe9F5EelxShLBxEON0n75';
-const FUND_CACHE_KEY = 'divwatch_fund_cache_v3';
+const FUND_CACHE_KEY = 'divwatch_fund_cache_v4';
 let autoOn = false;
 let globalPlnToUsd = null; // kurs PLN→USD pobierany przy każdym fetch
 const CACHE_KEY = 'divwatch_cache_v2';
@@ -960,14 +960,20 @@ async function fetchFundamentals() {
         const m = json[0];
         // stable API uses peRatioTTM or priceEarningsRatioTTM
         const peRaw = m.priceToEarningsRatioTTM ?? m.peRatioTTM ?? m.priceEarningsRatioTTM;
+        const pbRaw = m.priceToBookRatioTTM ?? m.priceBookValueRatioTTM ?? m.pbRatioTTM;
         const prRaw = m.dividendPayoutRatioTTM ?? m.payoutRatioTTM ?? m.payoutRatio;
         const pe = parseFloat(peRaw);
+        const pb = parseFloat(pbRaw);
         const pr = parseFloat(prRaw);
+        const peValid = !isNaN(pe) && pe > 0 && pe < 9999;
+        const pbValid = !isNaN(pb) && pb > 0 && pb < 999;
         results[ticker] = {
-          pe: (!isNaN(pe) && pe > 0 && pe < 9999) ? pe.toFixed(1) : null,
+          pe: peValid ? pe.toFixed(1) : null,
+          pb: pbValid ? pb.toFixed(2) : null,
+          peLabel: peValid ? 'C/Z' : (pbValid ? 'C/WK' : null),
           payoutRatio: (!isNaN(pr) && pr > 0) ? (pr > 1 ? pr.toFixed(1) : (pr * 100).toFixed(1)) : null,
         };
-        console.log(ticker, 'pe:', pe, 'pr:', pr, 'keys:', Object.keys(m).join(','));
+        console.log(ticker, 'pe:', pe, 'pb:', pb, 'pr:', pr);
       }
     } catch(e) {
       console.warn('FMP error for ' + ticker + ':', e.message);
@@ -1195,13 +1201,23 @@ function renderTable(data) {
       <td>${statusHtml}</td>
       <td>${(() => {
         const f = fundData[s.ticker];
-        if (!f || !f.pe) return '<span style="color:var(--muted)">—</span>';
-        const pe = parseFloat(f.pe);
+        if (!f) return '<span style="color:var(--muted)">—</span>';
+        const val = f.pe || f.pb;
+        const label = f.peLabel;
+        if (!val || !label) return '<span style="color:var(--muted)">—</span>';
+        const num = parseFloat(val);
         let color = 'var(--text)';
-        if (pe > 0 && pe < 15) color = 'var(--accent)';
-        else if (pe >= 15 && pe < 25) color = 'var(--gold)';
-        else if (pe >= 25) color = 'var(--red)';
-        return '<span style="color:' + color + ';font-weight:500">' + f.pe + '</span>';
+        if (f.pe) {
+          if (num < 15) color = 'var(--accent)';
+          else if (num < 25) color = 'var(--gold)';
+          else color = 'var(--red)';
+        } else {
+          if (num < 1) color = 'var(--accent)';
+          else if (num < 2) color = 'var(--gold)';
+          else color = 'var(--red)';
+        }
+        return '<span style="color:' + color + ';font-weight:500">' + val + '</span>'
+             + '<br><span style="color:var(--muted);font-size:0.7rem">' + label + '</span>';
       })()}</td>
       <td>${(() => {
         const f = fundData[s.ticker];
@@ -1367,14 +1383,22 @@ function renderMobileCards(data) {
 ${(() => {
           const f = fundData[s.ticker];
           if (!f) return '';
-          const pe = parseFloat(f.pe);
+          const val = f.pe || f.pb;
+          const label = f.peLabel || 'C/Z';
+          const num = parseFloat(val);
           let peColor = 'var(--text)';
-          if (pe > 0 && pe < 15) peColor = 'var(--accent)';
-          else if (pe >= 15 && pe < 25) peColor = 'var(--gold)';
-          else if (pe >= 25) peColor = 'var(--red)';
+          if (f.pe) {
+            if (num < 15) peColor = 'var(--accent)';
+            else if (num < 25) peColor = 'var(--gold)';
+            else peColor = 'var(--red)';
+          } else {
+            if (num < 1) peColor = 'var(--accent)';
+            else if (num < 2) peColor = 'var(--gold)';
+            else peColor = 'var(--red)';
+          }
           const pr = parseFloat(f.payoutRatio);
           let prColor = pr < 60 ? 'var(--accent)' : pr < 85 ? 'var(--gold)' : 'var(--red)';
-          return '<div class="m-field"><span class="m-label">C/Z TTM</span><span class="m-value" style="color:' + peColor + '">' + (f.pe || '—') + '</span></div>'
+          return '<div class="m-field"><span class="m-label">' + label + ' TTM</span><span class="m-value" style="color:' + peColor + '">' + (val || '—') + '</span></div>'
                + '<div class="m-field"><span class="m-label">Wypłata %</span><span class="m-value" style="color:' + prColor + '">' + (f.payoutRatio ? f.payoutRatio + '%' : '—') + '</span></div>';
         })()}
       </div>
