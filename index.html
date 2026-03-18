@@ -952,6 +952,10 @@ async function fetchFundamentals() {
       // ratios-ttm ma peRatioTTM, payoutRatioTTM i jest na free planie
       const url = 'https://financialmodelingprep.com/stable/ratios-ttm?symbol=' + ticker + '&apikey=' + FMP_KEY;
       const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (res.status === 402) {
+        console.log(ticker + ': not available on free FMP plan (402)');
+        continue;
+      }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const text = await res.text();
       let json;
@@ -1062,8 +1066,9 @@ function renderTable(data) {
     } else if (!d) {
       statusHtml = `<span class="badge badge-none">Brak danych</span>`;
     } else {
-      const declDate = d.declarationDate || d.date || '';
-      const isRecent = declDate && (new Date() - new Date(declDate)) < 1000*60*60*24*30;
+      // Używamy daty ex-div — EODHD zawsze ją ma
+      const checkDate = d.nextExDivDate || d.date || d.declarationDate || '';
+      const isRecent = checkDate && (new Date() - new Date(checkDate)) < 1000*60*60*24*30;
       if (isRecent) {
         tr.classList.add('new-div');
         statusHtml = `<span class="badge badge-new">🆕 Nowe</span>`;
@@ -1499,8 +1504,8 @@ function checkNewAnnouncements(data) {
   Object.keys(data).forEach(ticker => {
     const d = data[ticker];
     if (!d) return;
-    const declDate = d.declarationDate || d.date || '';
-    if (declDate && (new Date() - new Date(declDate)) < 1000*60*60*24*7) {
+    const checkDate = d.nextExDivDate || d.date || d.declarationDate || '';
+    if (checkDate && (new Date() - new Date(checkDate)) < 1000*60*60*24*7) {
       newOnes.push(`${ticker} ($${parseFloat(d.dividend||0).toFixed(4)})`);
     }
   });
