@@ -1394,11 +1394,21 @@ function renderTable(data) {
     // Suma wartości portfela — PLN przeliczone na USD
     let totalPortfolioUsd = 0;
     PORTFOLIO.forEach(s => {
+      const d = data[s.ticker];
+      const currentPrice = d ? d.currentPrice : null;
       if (s.currency === 'PLN') {
-        const rate = (data[s.ticker] && data[s.ticker].plnToUsd) ? data[s.ticker].plnToUsd : globalPlnToUsd;
-        if (rate) totalPortfolioUsd += s.value * rate;
+        const rate = (d && d.plnToUsd) ? d.plnToUsd : globalPlnToUsd;
+        if (currentPrice && rate) {
+          totalPortfolioUsd += currentPrice * s.shares; // currentPrice już w USD
+        } else if (rate) {
+          totalPortfolioUsd += s.value * rate; // fallback
+        }
       } else {
-        totalPortfolioUsd += s.value;
+        if (currentPrice) {
+          totalPortfolioUsd += currentPrice * s.shares;
+        } else {
+          totalPortfolioUsd += s.value; // fallback gdy brak ceny
+        }
       }
     });
     document.getElementById('portfolioValue').textContent = '$' + totalPortfolioUsd.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
