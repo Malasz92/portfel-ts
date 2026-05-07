@@ -587,6 +587,122 @@
     color: var(--accent);
     opacity: 0.7;
   }
+
+  /* ── Modal zarządzania spółkami ─────────────────────────────────────────── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #13151a;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.4rem;
+    color: var(--accent);
+    margin-bottom: 16px;
+  }
+  .modal-stock-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .modal-stock-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+  }
+  .modal-stock-info { display: flex; flex-direction: column; gap: 2px; }
+  .modal-stock-ticker { color: var(--accent); font-weight: 500; }
+  .modal-stock-details { color: var(--muted); font-size: 0.75rem; }
+  .btn-remove {
+    background: rgba(255,77,77,0.1);
+    border: 1px solid rgba(255,77,77,0.3);
+    color: #ff4d4d;
+    border-radius: 6px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .btn-remove:hover { background: rgba(255,77,77,0.2); }
+  .modal-divider { height: 1px; background: var(--border); margin: 16px 0; }
+  .modal h4 { color: var(--text); font-size: 0.9rem; margin-bottom: 12px; font-family: 'DM Sans', sans-serif; }
+  .modal-form { display: flex; flex-direction: column; gap: 10px; }
+  .modal-form input, .modal-form select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.85rem;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .modal-form input:focus, .modal-form select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .modal-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn-add-stock {
+    background: rgba(0,229,160,0.15);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    width: 100%;
+    margin-top: 4px;
+  }
+  .btn-add-stock:hover { background: rgba(0,229,160,0.25); }
+  .btn-manage {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+  }
+  .btn-manage:hover { border-color: var(--accent); color: var(--accent); }
+  .modal-close {
+    float: right;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    margin-top: -4px;
+  }
+  .modal-close:hover { color: var(--text); }
+  .modal-error { color: #ff4d4d; font-size: 0.8rem; margin-top: 4px; display: none; }
 </style>
 </head>
 <body>
@@ -636,6 +752,7 @@
         ⟳ Pobierz dywidendy
       </button>
       <button class="btn" onclick="toggleAutoRefresh()" id="autoBtn">▶ Auto (15 min)</button>
+      <button class="btn-manage" onclick="openManageModal()">⚙️ Spółki</button>
     </div>
   </div>
   <div class="save-hint" style="margin-bottom:14px;">✏️ Kliknij na liczbę akcji lub wartość pozycji w tabeli, aby edytować — zmiany zapisują się automatycznie.</div>
@@ -713,7 +830,7 @@ const PORTFOLIO_DEFAULTS = [
   { ticker: 'O',      name: 'Realty Income',       shares: 16.7271,  value: 1083.58, avgCost: 66.34, color: '#e85d04', bg: '#1c0e04' },
   { ticker: 'MSFT',   name: 'Microsoft',           shares: 0.6338,   value: 260.22,  avgCost: 395.12,color: '#00a4ef', bg: '#031624' },
   { ticker: 'GOOGL',  name: 'Alphabet',            shares: 0.8623,   value: 259.39,  avgCost: 307.74,color: '#34a853', bg: '#041408' },
-  { ticker: 'NVO',    name: 'Novo Nordisk',        shares: 6.6013,   value: 257.71,  avgCost: 59.75, color: '#005fa3', bg: '#03121e' },
+  { ticker: 'ANET',   name: 'Arista Networks',     shares: 1.9376,   value: 276.88,  avgCost: 142.92,color: '#ff6d00', bg: '#1c1008' },
   { ticker: 'ULG.WA', name: 'Ultimate',            shares: 36200,    value: 434762,  avgCost: 12.01, color: '#4caf50', bg: '#0a1a0a', currency: 'PLN' },
 ];
 
@@ -1537,11 +1654,118 @@ function toggleAutoRefresh() {
     autoInterval = setInterval(fetchAll, 15 * 60 * 1000);
   }
 }
+
+// ─── Zarządzanie spółkami ─────────────────────────────────────────────────────
+const DEFAULT_COLORS = [
+  {color:'#cd040b',bg:'#2a0a0b'},{color:'#1a6bcd',bg:'#0a1628'},
+  {color:'#2d7d46',bg:'#0a1810'},{color:'#d4a017',bg:'#1c1608'},
+  {color:'#e85d04',bg:'#1c0e04'},{color:'#00a4ef',bg:'#031624'},
+  {color:'#34a853',bg:'#041408'},{color:'#ff6d00',bg:'#1c1008'},
+  {color:'#9c27b0',bg:'#150a1c'},{color:'#00bcd4',bg:'#03151a'},
+];
+
+function openManageModal() {
+  renderManageList();
+  document.getElementById('manageModal').classList.add('open');
+}
+
+function closeManageModal() {
+  document.getElementById('manageModal').classList.remove('open');
+  document.getElementById('manageError').style.display = 'none';
+}
+
+function renderManageList() {
+  const list = document.getElementById('manageList');
+  list.innerHTML = '';
+  PORTFOLIO.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'modal-stock-row';
+    row.innerHTML = '<div class="modal-stock-info">'
+      + '<span class="modal-stock-ticker">' + s.ticker + '</span>'
+      + '<span class="modal-stock-details">' + s.name + ' · ' + s.shares + ' akcji · ' + (s.currency === 'PLN' ? s.avgCost.toFixed(2) + ' zł' : '$' + s.avgCost.toFixed(2)) + '</span>'
+      + '</div>'
+      + '<button class="btn-remove" onclick="removeStock(' + i + ')">Usuń</button>';
+    list.appendChild(row);
+  });
+}
+
+function removeStock(index) {
+  if (!confirm('Usunąć ' + PORTFOLIO[index].ticker + ' z portfela?')) return;
+  PORTFOLIO.splice(index, 1);
+  savePortfolioOverrides();
+  renderManageList();
+  renderTable(divData);
+  updateStatsBar(divData);
+}
+
+function addStock() {
+  const ticker = document.getElementById('newTicker').value.trim().toUpperCase();
+  const name = document.getElementById('newName').value.trim();
+  const shares = parseFloat(document.getElementById('newShares').value);
+  const avgCost = parseFloat(document.getElementById('newAvgCost').value);
+  const currency = document.getElementById('newCurrency').value;
+  const errEl = document.getElementById('manageError');
+
+  if (!ticker || !name || isNaN(shares) || isNaN(avgCost) || shares <= 0 || avgCost <= 0) {
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  const colorSet = DEFAULT_COLORS[PORTFOLIO.length % DEFAULT_COLORS.length];
+  const newStock = {
+    ticker, name, shares, value: shares * avgCost, avgCost,
+    color: colorSet.color, bg: colorSet.bg,
+    ...(currency === 'PLN' ? { currency: 'PLN' } : {})
+  };
+
+  PORTFOLIO.push(newStock);
+  savePortfolioOverrides();
+  ['newTicker','newName','newShares','newAvgCost'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('newCurrency').value = 'USD';
+  renderManageList();
+  fetchAll();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const overlay = document.getElementById('manageModal');
+  if (overlay) overlay.addEventListener('click', function(e) {
+    if (e.target === this) closeManageModal();
+  });
+});
+
 </script>
 <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 </script>
+
+  <!-- Modal zarządzania spółkami -->
+  <div class="modal-overlay" id="manageModal">
+    <div class="modal">
+      <button class="modal-close" onclick="closeManageModal()">×</button>
+      <h3>Zarządzaj spółkami</h3>
+      <div class="modal-stock-list" id="manageList"></div>
+      <div class="modal-divider"></div>
+      <h4>➕ Dodaj nową spółkę</h4>
+      <div class="modal-form">
+        <div class="modal-form-row">
+          <input id="newTicker" placeholder="Ticker (np. AAPL)" style="text-transform:uppercase">
+          <input id="newName" placeholder="Nazwa (np. Apple)">
+        </div>
+        <div class="modal-form-row">
+          <input id="newShares" type="number" step="any" placeholder="Liczba akcji">
+          <input id="newAvgCost" type="number" step="any" placeholder="Cena zakupu">
+        </div>
+        <select id="newCurrency">
+          <option value="USD">USD (giełdy US)</option>
+          <option value="PLN">PLN (GPW)</option>
+        </select>
+        <div class="modal-error" id="manageError">Wypełnij wszystkie pola</div>
+        <button class="btn-add-stock" onclick="addStock()">Dodaj spółkę</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
