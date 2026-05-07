@@ -853,12 +853,31 @@ function loadPortfolio() {
   try {
     const saved = localStorage.getItem(PORTFOLIO_STORAGE);
     if (saved) {
-      const overrides = JSON.parse(saved); // { ticker: { shares, value } }
+      const data = JSON.parse(saved);
+      // Nowy format: { defaults: {ticker: overrides}, added: [spółki] }
+      if (data._version === 2) {
+        const removedSet = new Set(data.removed || []);
+        const result = PORTFOLIO_DEFAULTS
+          .filter(s => !removedSet.has(s.ticker))
+          .map(s => ({
+            ...s,
+            shares:  data.defaults[s.ticker]?.shares  ?? s.shares,
+            value:   data.defaults[s.ticker]?.value   ?? s.value,
+            avgCost: data.defaults[s.ticker]?.avgCost ?? s.avgCost,
+          }));
+        // Dodaj nowe spółki których nie ma w defaults
+        const defaultTickers = new Set(PORTFOLIO_DEFAULTS.map(s => s.ticker));
+        (data.added || []).forEach(s => {
+          if (!defaultTickers.has(s.ticker)) result.push(s);
+        });
+        return result;
+      }
+      // Stary format: { ticker: { shares, value } } — migracja
       return PORTFOLIO_DEFAULTS.map(s => ({
         ...s,
-        shares:  overrides[s.ticker]?.shares  ?? s.shares,
-        value:   overrides[s.ticker]?.value   ?? s.value,
-        avgCost: overrides[s.ticker]?.avgCost ?? s.avgCost,
+        shares:  data[s.ticker]?.shares  ?? s.shares,
+        value:   data[s.ticker]?.value   ?? s.value,
+        avgCost: data[s.ticker]?.avgCost ?? s.avgCost,
       }));
     }
   } catch(e) {}
@@ -866,9 +885,20 @@ function loadPortfolio() {
 }
 
 function savePortfolioOverrides() {
-  const overrides = {};
-  PORTFOLIO.forEach(s => { overrides[s.ticker] = { shares: s.shares, value: s.value, avgCost: s.avgCost }; });
-  localStorage.setItem(PORTFOLIO_STORAGE, JSON.stringify(overrides));
+  const defaultTickers = new Set(PORTFOLIO_DEFAULTS.map(s => s.ticker));
+  const defaults = {};
+  const added = [];
+  // Track which default tickers are still in portfolio (user may have removed some)
+  const activeTickers = new Set(PORTFOLIO.map(s => s.ticker));
+  const removed = PORTFOLIO_DEFAULTS.map(s => s.ticker).filter(t => !activeTickers.has(t));
+  PORTFOLIO.forEach(s => {
+    if (defaultTickers.has(s.ticker)) {
+      defaults[s.ticker] = { shares: s.shares, value: s.value, avgCost: s.avgCost };
+    } else {
+      added.push(s);
+    }
+  });
+  localStorage.setItem(PORTFOLIO_STORAGE, JSON.stringify({ _version: 2, defaults, added, removed }));
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
