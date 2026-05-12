@@ -922,6 +922,16 @@ window.addEventListener('DOMContentLoaded', () => {
   for (const key of Object.keys(localStorage)) {
     if (key.startsWith(FUND_CACHE_KEY)) localStorage.removeItem(key);
   }
+  // Wyczyść cache dywidend dla spółek których nie ma w PORTFOLIO_DEFAULTS
+  const defaultTickerSet = new Set(PORTFOLIO_DEFAULTS.map(s => s.ticker));
+  PORTFOLIO.forEach(s => {
+    if (!defaultTickerSet.has(s.ticker)) {
+      // Usuń wszystkie klucze cache dywidend dla tej spółki
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('div_cache_' + s.ticker + '_')) localStorage.removeItem(key);
+      }
+    }
+  });
 
   // Automatycznie włącz auto-odświeżanie i pobierz dane od razu
   toggleAutoRefresh();
@@ -980,17 +990,28 @@ async function fetchAll() {
   fromDate.setFullYear(fromDate.getFullYear() - 2);
   const from = fromDate.toISOString().split('T')[0];
 
-  // ── Jedno zapytanie dla WSZYSTKICH cen (bulk) ─────────────────────────────
+  // ── Ceny — osobny bulk dla US i WAR (EODHD nie miesza giełd) ───────────────
   let bulkPrices = {};
-  try {
-    const tickers = PORTFOLIO.map(s => toEodTicker(s)).join(',');
-    const bulkJson = await apiFetch(`https://eodhd.com/api/real-time/${tickers.split(',')[0]}?api_token=${API_KEY}&fmt=json&s=${tickers.split(',').slice(1).join(',')}`);
-    // bulk zwraca tablicę lub pojedynczy obiekt
-    const arr = Array.isArray(bulkJson) ? bulkJson : [bulkJson];
-    arr.forEach(item => { if (item?.code) bulkPrices[item.code] = item; });
-    log(`💹 Ceny pobrane: ${arr.length} spółek (1 zapytanie)`);
-  } catch(e) {
-    log(`💹 Błąd bulk cen: ${e.message}`);
+
+  const usBulk = PORTFOLIO.filter(s => s.currency !== 'PLN').map(s => toEodTicker(s));
+  const warBulk = PORTFOLIO.filter(s => s.currency === 'PLN').map(s => toEodTicker(s));
+
+  if (usBulk.length > 0) {
+    try {
+      const bulkJson = await apiFetch(`https://eodhd.com/api/real-time/${usBulk[0]}?api_token=${API_KEY}&fmt=json&s=${usBulk.slice(1).join(',')}`);
+      const arr = Array.isArray(bulkJson) ? bulkJson : [bulkJson];
+      arr.forEach(item => { if (item?.code) bulkPrices[item.code] = item; });
+      log(`💹 US ceny: ${arr.length} spółek`);
+    } catch(e) { log(`💹 Błąd US bulk: ${e.message}`); }
+  }
+
+  if (warBulk.length > 0) {
+    try {
+      const bulkJson = await apiFetch(`https://eodhd.com/api/real-time/${warBulk[0]}?api_token=${API_KEY}&fmt=json&s=${warBulk.slice(1).join(',')}`);
+      const arr = Array.isArray(bulkJson) ? bulkJson : [bulkJson];
+      arr.forEach(item => { if (item?.code) bulkPrices[item.code] = item; });
+      log(`💹 WAR ceny: ${arr.length} spółek`);
+    } catch(e) { log(`💹 Błąd WAR bulk: ${e.message}`); }
   }
 
   for (const s of PORTFOLIO) {
@@ -1175,6 +1196,9 @@ function renderTable(data) {
         else if (avgGap < 200) { freq = 'Półroczna'; freqMult = 2; }
         else { freq = 'Roczna'; freqMult = 1; }
       }
+    } else if (d && d._history && d._history.length === 1) {
+      // Tylko 1 dywidenda w historii — zakładamy roczną
+      freq = 'Roczna'; freqMult = 1;
     }
 
     const divAmt = d ? parseFloat(d.dividend || d.adjDividend || 0) : 0;
