@@ -1176,7 +1176,7 @@ function renderTable(data) {
 
     // frequency from API field or history calculation
     let freq = '—';
-    let freqMult = 0;
+    let freqMult = 1;
     if (d && d.frequency) {
       const f = d.frequency.toLowerCase();
       if (f.includes('month') || f === 'monthly') { freq = 'Miesięczna'; freqMult = 12; }
@@ -1493,8 +1493,14 @@ function renderMobileCards(data) {
 
     // Yield
     const freqMults = {'Miesięczna':12,'Kwartalna':4,'Półroczna':2,'Roczna':1};
-    let freqMult = 4, freq = '—';
-    if (d?._history?.length >= 2) {
+    let freqMult = 1, freq = '—';
+    if (d?.frequency) {
+      const f = d.frequency.toLowerCase();
+      if (f.includes('month')) { freq='Miesięczna'; freqMult=12; }
+      else if (f.includes('quarter')) { freq='Kwartalna'; freqMult=4; }
+      else if (f.includes('semi')) { freq='Półroczna'; freqMult=2; }
+      else if (f.includes('annual')) { freq='Roczna'; freqMult=1; }
+    } else if (d?._history?.length >= 2) {
       const dates = d._history.map(x => new Date(x.date)).sort((a,b)=>b-a);
       const gaps = [];
       for (let i=0; i<dates.length-1; i++) gaps.push((dates[i]-dates[i+1])/(1000*60*60*24));
@@ -1503,6 +1509,8 @@ function renderMobileCards(data) {
       else if (avg < 100) { freq='Kwartalna'; freqMult=4; }
       else if (avg < 200) { freq='Półroczna'; freqMult=2; }
       else { freq='Roczna'; freqMult=1; }
+    } else if (d?._history?.length === 1) {
+      freq='Roczna'; freqMult=1;
     }
     const annualTotal = divAmt * freqMult * s.shares;
     const costBasis   = avgCostUsd * s.shares;
