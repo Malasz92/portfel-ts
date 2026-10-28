@@ -703,6 +703,49 @@
   }
   .modal-close:hover { color: var(--text); }
   .modal-error { color: #ff4d4d; font-size: 0.8rem; margin-top: 4px; display: none; }
+
+  /* ── Kalendarz wypłat ───────────────────────────────────────────────────── */
+  .stat-sub { font-family:'DM Mono',monospace; font-size:0.72rem; color:var(--muted); margin-top:4px; }
+  .stat-sub b { color:var(--accent); font-weight:500; }
+  .cal-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 20px; margin-bottom:28px; }
+  .cal-head { display:flex; justify-content:space-between; align-items:flex-end; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .cal-total { font-family:'DM Mono',monospace; font-size:1.4rem; color:var(--accent); }
+  .cal-legend { font-family:'DM Mono',monospace; font-size:0.68rem; color:var(--muted); }
+  .cal-bars { display:grid; grid-template-columns:repeat(12, 1fr); gap:6px; align-items:end; }
+  .cal-col { background:none; border:0; padding:0; cursor:pointer; display:flex; flex-direction:column; align-items:center; gap:4px; color:inherit; font:inherit; min-width:0; }
+  .cal-val { font-family:'DM Mono',monospace; font-size:0.66rem; color:var(--muted); height:14px; white-space:nowrap; }
+  .cal-track { width:100%; height:110px; display:flex; align-items:flex-end; border-bottom:1px solid var(--border); }
+  .cal-bar { width:100%; background:var(--accent); opacity:0.45; border-radius:4px 4px 0 0; transition:opacity .15s; }
+  .cal-col:hover .cal-bar { opacity:0.75; }
+  .cal-col.sel .cal-bar { opacity:1; }
+  .cal-col.sel .cal-mon, .cal-col.sel .cal-val { color:var(--text); }
+  .cal-mon { font-family:'DM Mono',monospace; font-size:0.66rem; color:var(--muted); text-align:center; line-height:1.2; height:26px; }
+  .cal-col.over .cal-bar { background:repeating-linear-gradient(135deg, var(--accent) 0 6px, transparent 6px 9px) top/100% 14px no-repeat, var(--accent); }
+  .cal-mon small { font-size:0.58rem; }
+  .cal-detail { margin-top:14px; border-top:1px solid var(--border); padding-top:10px; font-family:'DM Mono',monospace; font-size:0.78rem; }
+  .cal-detail-head { color:var(--muted); margin-bottom:6px; }
+  .cal-detail-head b { color:var(--accent); font-weight:500; }
+  .cal-row { display:grid; grid-template-columns:1fr auto auto; gap:16px; padding:4px 0; }
+  .cal-tk { color:var(--text); }
+  .cal-dt { color:var(--muted); }
+  .cal-amt { color:var(--accent); text-align:right; min-width:70px; }
+  .cal-empty { color:var(--muted); }
+  @media (max-width: 700px) {
+    .cal-card { padding:14px; }
+    .cal-bars { gap:3px; }
+    .cal-val { display:none; }
+    .cal-track { height:90px; }
+  }
+  /* ── Zmiana dywidendy ───────────────────────────────────────────────────── */
+  .div-chg { display:inline-block; font-family:'DM Mono',monospace; font-size:0.66rem; padding:1px 5px; border-radius:4px; margin-left:4px; white-space:nowrap; vertical-align:middle; }
+  .div-chg.up { color:var(--accent); background:rgba(0,229,160,0.12); }
+  .div-chg.down { color:var(--red); background:rgba(255,77,77,0.14); }
+  .net-sub { display:block; color:var(--muted); font-size:0.72rem; }
+  /* ── Synchronizacja ─────────────────────────────────────────────────────── */
+  .sync-row { display:flex; gap:8px; }
+  .sync-row input { flex:1; }
+  .sync-row button { width:auto; margin-top:0; padding:10px 16px; }
+  .sync-status { font-family:'DM Mono',monospace; font-size:0.75rem; color:var(--muted); margin-top:4px; min-height:1em; }
 </style>
 </head>
 <body>
@@ -726,6 +769,7 @@
     <div class="stat-card">
       <div class="stat-label">Roczna dywidenda (est.)</div>
       <div class="stat-value" id="totalAnnual">—</div>
+      <div class="stat-sub" id="totalAnnualNet"></div>
     </div>
     <div class="stat-card gold">
       <div class="stat-label">Śr. yield (od zakupu)</div>
@@ -739,6 +783,18 @@
       <div class="stat-label">Nowe ogłoszenia</div>
       <div class="stat-value" id="newCount">—</div>
     </div>
+  </div>
+
+  <div class="cal-card">
+    <div class="cal-head">
+      <div>
+        <div class="stat-label">Kalendarz wypłat · najbliższe 12 mies.</div>
+        <div class="cal-total" id="calTotal">—</div>
+      </div>
+      <div class="cal-legend">netto po 19% podatku · ~ = data szacowana</div>
+    </div>
+    <div class="cal-bars" id="calBars"></div>
+    <div class="cal-detail" id="calDetail"></div>
   </div>
 
   <div class="api-key-section" style="justify-content:space-between;">
@@ -898,7 +954,8 @@ function savePortfolioOverrides() {
       added.push(s);
     }
   });
-  localStorage.setItem(PORTFOLIO_STORAGE, JSON.stringify({ _version: 2, defaults, added, removed }));
+  localStorage.setItem(PORTFOLIO_STORAGE, JSON.stringify({ _version: 2, defaults, added, removed, updatedAt: Date.now() }));
+  if (typeof scheduleSyncPush === 'function') scheduleSyncPush();
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -932,6 +989,10 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // Synchronizacja portfela z innymi urządzeniami
+  renderSyncBox();
+  syncPull();
 
   // Automatycznie włącz auto-odświeżanie i pobierz dane od razu
   toggleAutoRefresh();
@@ -1063,6 +1124,8 @@ async function fetchAll() {
           date: latest.date,
           _history: sorted.slice(0, 8).map(d => ({
             dividend: s.currency === 'PLN' && plnToUsd ? parseFloat(d.value||d.amount||0) * plnToUsd : parseFloat(d.value||d.amount||0),
+            raw: parseFloat(d.value||d.amount||0),
+            paymentDate: d.paymentDate || null,
             date: d.date
           }))
         };
@@ -1161,6 +1224,217 @@ async function fetchFundamentals() {
 }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
+// ─── Podatek, częstotliwość, zmiany dywidend, prognoza wypłat ────────────────
+// US: 15% u źródła (W-8BEN) + 4% dopłaty w PIT-38; GPW: 19% u źródła → w obu przypadkach 19% łącznie
+const TAX_RATE = 0.19;
+const NET_FACTOR = 1 - TAX_RATE;
+const PL_MONTHS = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
+
+function getFreqInfo(d) {
+  const h = (d && d._history) || [];
+  const uniq = [...new Set(h.map(x => x.date).filter(Boolean))].map(x => new Date(x)).filter(x => !isNaN(x)).sort((a,b) => b - a);
+  if (uniq.length >= 2) {
+    const gaps = [];
+    for (let i = 0; i < uniq.length - 1; i++) gaps.push((uniq[i] - uniq[i+1]) / 864e5);
+    const avg = gaps.reduce((a,b) => a + b, 0) / gaps.length;
+    if (avg < 45)  return { label: 'Miesięczna', mult: 12 };
+    if (avg < 100) return { label: 'Kwartalna',  mult: 4 };
+    if (avg < 200) return { label: 'Półroczna',  mult: 2 };
+    return { label: 'Roczna', mult: 1 };
+  }
+  if (uniq.length === 1) return { label: 'Roczna', mult: 1 };
+  return { label: '—', mult: 1 };
+}
+
+// Porównanie ostatniej i poprzedniej dywidendy (w walucie spółki).
+// Gdy w jednym dniu są dwie wypłaty (np. regularna + specjalna), bierzemy mniejszą jako regularną.
+function getDivChange(d) {
+  const h = d && d._history;
+  if (!h || h.length < 2) return null;
+  const byDate = {};
+  h.forEach(x => {
+    const v = parseFloat(x.raw != null ? x.raw : x.dividend);
+    if (!(v > 0) || !x.date) return;
+    byDate[x.date] = byDate[x.date] == null ? v : Math.min(byDate[x.date], v);
+  });
+  const dates = Object.keys(byDate).sort().reverse();
+  if (dates.length < 2) return null;
+  const cur = byDate[dates[0]], prev = byDate[dates[1]];
+  const pct = (cur - prev) / prev * 100;
+  return { pct: Math.abs(pct) < 1 ? 0 : pct, cur, prev, date: dates[0] };
+}
+
+function divChangeBadge(ch, currency) {
+  if (!ch || ch.pct === 0) return '';
+  const up = ch.pct > 0;
+  const fmt = v => currency === 'PLN' ? v.toFixed(4) + ' zł' : '$' + v.toFixed(4);
+  const title = (up ? 'Podwyżka' : 'Obniżka') + ' dywidendy: poprzednio ' + fmt(ch.prev) + ', teraz ' + fmt(ch.cur);
+  return '<span class="div-chg ' + (up ? 'up' : 'down') + '" title="' + title + '">'
+       + (up ? '▲ +' : '▼ ') + ch.pct.toFixed(1) + '%</span>';
+}
+
+// Prognoza wypłat na 12 miesięcy od początku bieżącego miesiąca
+function projectPayments(s, d) {
+  const out = [];
+  if (!d || !(parseFloat(d.dividend) > 0) || !d._history || !d._history.length) return out;
+  const fi = getFreqInfo(d);
+  const intervalMs = (365.25 / fi.mult) * 864e5;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 12, 1);
+  let base, baseKnown = false;
+  if (d.nextPaymentDate) { base = new Date(d.nextPaymentDate); baseKnown = true; }
+  else { base = new Date(d.nextExDivDate || d._history[0].date); base.setDate(base.getDate() + 14); }
+  if (isNaN(base)) return out;
+  const gross = parseFloat(d.dividend) * s.shares;
+  for (let k = 0; k < 400; k++) {
+    const dt = new Date(base.getTime() + k * intervalMs);
+    if (dt >= end) break;
+    if (dt < start) continue;
+    out.push({ ticker: s.ticker, date: dt, gross, net: gross * NET_FACTOR, estimated: !(k === 0 && baseKnown) });
+  }
+  return out;
+}
+
+let calSelected = 0;
+function renderCalendar(data) {
+  const barsEl = document.getElementById('calBars');
+  if (!barsEl) return;
+  const now = new Date();
+  const months = [];
+  for (let i = 0; i < 12; i++) {
+    const m = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    months.push({ y: m.getFullYear(), m: m.getMonth(), net: 0, items: [] });
+  }
+  if (data) {
+    PORTFOLIO.forEach(s => {
+      projectPayments(s, data[s.ticker]).forEach(p => {
+        const idx = (p.date.getFullYear() - now.getFullYear()) * 12 + p.date.getMonth() - now.getMonth();
+        if (idx >= 0 && idx < 12) { months[idx].net += p.net; months[idx].items.push(p); }
+      });
+    });
+  }
+  const total = months.reduce((a, m) => a + m.net, 0);
+  // Skala: jeśli jeden miesiąc jest wielokrotnie większy od reszty, skalujemy do pozostałych, a duży słupek przycinamy
+  const sortedNets = months.map(m => m.net).sort((a, b) => b - a);
+  let max = Math.max(1, sortedNets[0]);
+  if (sortedNets[1] > 0 && sortedNets[0] > sortedNets[1] * 3) max = sortedNets[1] * 1.25;
+  document.getElementById('calTotal').textContent = data
+    ? '$' + total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '—';
+  barsEl.innerHTML = months.map((m, i) => {
+    const over = m.net > max;
+    const h = m.net > 0 ? Math.min(100, Math.max(4, Math.round(m.net / max * 100))) : 0;
+    return '<button class="cal-col' + (i === calSelected ? ' sel' : '') + (over ? ' over' : '') + '" data-i="' + i + '">'
+      + '<span class="cal-val">' + (m.net > 0 ? '$' + Math.round(m.net) : '') + '</span>'
+      + '<span class="cal-track"><span class="cal-bar" style="height:' + h + '%"></span></span>'
+      + '<span class="cal-mon">' + PL_MONTHS[m.m] + (m.m === 0 ? '<br><small>' + m.y + '</small>' : '') + '</span>'
+      + '</button>';
+  }).join('');
+  barsEl.querySelectorAll('.cal-col').forEach(b => b.addEventListener('click', () => {
+    calSelected = parseInt(b.dataset.i, 10);
+    renderCalendar(divData);
+  }));
+  const sel = months[calSelected];
+  const detail = document.getElementById('calDetail');
+  if (!data) { detail.innerHTML = ''; return; }
+  const items = sel.items.sort((a, b) => a.date - b.date);
+  const head = '<div class="cal-detail-head">' + PL_MONTHS[sel.m] + ' ' + sel.y + ' · netto <b>$' + sel.net.toFixed(2) + '</b></div>';
+  detail.innerHTML = head + (items.length
+    ? items.map(p => '<div class="cal-row"><span class="cal-tk">' + p.ticker + '</span>'
+        + '<span class="cal-dt">' + (p.estimated ? '~' : '') + String(p.date.getDate()).padStart(2, '0') + '.' + String(p.date.getMonth() + 1).padStart(2, '0') + '</span>'
+        + '<span class="cal-amt">$' + p.net.toFixed(2) + '</span></div>').join('')
+    : '<div class="cal-empty">Brak prognozowanych wypłat w tym miesiącu</div>');
+}
+
+// ─── Synchronizacja między urządzeniami (Cloudflare Worker + KV) ─────────────
+const SYNC_URL = 'https://lingering-boat-4035.staniszewski-tomek.workers.dev/sync';
+const SYNC_TOKEN_KEY = 'portfel_sync_token';
+let syncPushTimer = null;
+
+function getSyncToken() { try { return localStorage.getItem(SYNC_TOKEN_KEY) || ''; } catch(e) { return ''; } }
+
+function setSyncStatus(msg, ok) {
+  const el = document.getElementById('syncStatus');
+  if (el) { el.textContent = msg; el.style.color = ok === false ? 'var(--red)' : ok ? 'var(--accent)' : 'var(--muted)'; }
+}
+
+function localPortfolioState() {
+  try { return JSON.parse(localStorage.getItem(PORTFOLIO_STORAGE) || 'null'); } catch(e) { return null; }
+}
+
+async function syncPush() {
+  const token = getSyncToken();
+  if (!token) return;
+  const state = localPortfolioState();
+  if (!state) return;
+  try {
+    const res = await fetch(SYNC_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Sync-Token': token },
+      body: JSON.stringify(state),
+    });
+    if (!res.ok) throw new Error(res.status === 401 ? 'zły token' : 'HTTP ' + res.status);
+    setSyncStatus('✓ Wysłano ' + new Date().toLocaleTimeString('pl-PL'), true);
+  } catch(e) {
+    setSyncStatus('✗ Błąd wysyłania: ' + e.message, false);
+  }
+}
+
+function scheduleSyncPush() {
+  if (!getSyncToken()) return;
+  clearTimeout(syncPushTimer);
+  syncPushTimer = setTimeout(syncPush, 1500);
+}
+
+async function syncPull() {
+  const token = getSyncToken();
+  if (!token) return;
+  try {
+    const res = await fetch(SYNC_URL, { headers: { 'X-Sync-Token': token }, cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status === 401 ? 'zły token' : 'HTTP ' + res.status);
+    const remote = await res.json();
+    const local = localPortfolioState();
+    const remoteTs = (remote && remote.updatedAt) || 0;
+    const localTs = (local && local.updatedAt) || 0;
+    if (remote && remoteTs > localTs) {
+      localStorage.setItem(PORTFOLIO_STORAGE, JSON.stringify(remote));
+      PORTFOLIO = loadPortfolio();
+      renderTable(divData);
+      if (document.getElementById('manageModal')?.classList.contains('open')) renderManageList();
+      setSyncStatus('✓ Pobrano zmiany ' + new Date().toLocaleTimeString('pl-PL'), true);
+    } else if (local && (localTs > remoteTs || !remote)) {
+      await syncPush();
+    } else {
+      setSyncStatus('✓ Zsynchronizowano ' + new Date().toLocaleTimeString('pl-PL'), true);
+    }
+  } catch(e) {
+    setSyncStatus('✗ Błąd synchronizacji: ' + e.message, false);
+  }
+}
+
+function saveSyncToken() {
+  const v = document.getElementById('syncTokenInput').value.trim();
+  try {
+    if (v) localStorage.setItem(SYNC_TOKEN_KEY, v); else localStorage.removeItem(SYNC_TOKEN_KEY);
+  } catch(e) {}
+  document.getElementById('syncTokenInput').value = '';
+  renderSyncBox();
+  if (v) syncPull(); else setSyncStatus('Synchronizacja wyłączona');
+}
+
+function renderSyncBox() {
+  const on = !!getSyncToken();
+  const lbl = document.getElementById('syncState');
+  if (lbl) lbl.textContent = on ? 'włączona na tym urządzeniu' : 'wyłączona';
+  const btn = document.getElementById('syncNowBtn');
+  if (btn) btn.style.display = on ? 'block' : 'none';
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncPull();
+});
+
 function renderTable(data) {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
@@ -1174,32 +1448,9 @@ function renderTable(data) {
     const d = data ? data[s.ticker] : null;
     const tr = document.createElement('tr');
 
-    // frequency from API field or history calculation
-    let freq = '—';
-    let freqMult = 1;
-    if (d && d.frequency) {
-      const f = d.frequency.toLowerCase();
-      if (f.includes('month') || f === 'monthly') { freq = 'Miesięczna'; freqMult = 12; }
-      else if (f.includes('quarter') || f === 'quarterly') { freq = 'Kwartalna'; freqMult = 4; }
-      else if (f.includes('semi') || f === 'semi-annual') { freq = 'Półroczna'; freqMult = 2; }
-      else if (f.includes('annual') || f === 'annual') { freq = 'Roczna'; freqMult = 1; }
-    } else if (d && d._history && d._history.length >= 2) {
-      const dates = d._history.map(x => new Date(x.declarationDate||x.date)).filter(Boolean).sort((a,b)=>b-a);
-      if (dates.length >= 2) {
-        const gaps = [];
-        for (let i=0; i<dates.length-1; i++) {
-          gaps.push((dates[i] - dates[i+1]) / (1000*60*60*24));
-        }
-        const avgGap = gaps.reduce((a,b)=>a+b,0)/gaps.length;
-        if (avgGap < 45) { freq = 'Miesięczna'; freqMult = 12; }
-        else if (avgGap < 100) { freq = 'Kwartalna'; freqMult = 4; }
-        else if (avgGap < 200) { freq = 'Półroczna'; freqMult = 2; }
-        else { freq = 'Roczna'; freqMult = 1; }
-      }
-    } else if (d && d._history && d._history.length === 1) {
-      // Tylko 1 dywidenda w historii — zakładamy roczną
-      freq = 'Roczna'; freqMult = 1;
-    }
+    const fi = getFreqInfo(d);
+    const freq = fi.label;
+    const freqMult = fi.mult;
 
     const divAmt = d ? parseFloat(d.dividend || d.adjDividend || 0) : 0;
     const annualPerShare = freqMult ? divAmt * freqMult : divAmt;
@@ -1266,6 +1517,7 @@ function renderTable(data) {
       } else {
         divStr = `$${divAmt.toFixed(4)}`;
       }
+      divStr += divChangeBadge(getDivChange(d), s.currency);
     } else {
       divStr = '<span style="color:var(--muted)">—</span>';
     }
@@ -1281,7 +1533,7 @@ function renderTable(data) {
 
     // Roczna
     const annualStr = annualTotal > 0
-      ? `$${annualTotal.toFixed(2)}`
+      ? `$${annualTotal.toFixed(2)}<span class="net-sub">netto $${(annualTotal * NET_FACTOR).toFixed(2)}</span>`
       : '<span style="color:var(--muted)">—</span>';
 
     // Wartość pozycji dynamiczna
@@ -1439,10 +1691,15 @@ function renderTable(data) {
 
     const weightedAvgYield = totalCostBasis > 0 ? weightedYieldSum / totalCostBasis : 0;
     document.getElementById('totalAnnual').textContent = totalAnnual > 0 ? `$${totalAnnual.toFixed(2)}` : '—';
+    document.getElementById('totalAnnualNet').innerHTML = totalAnnual > 0
+      ? `netto <b>$${(totalAnnual * NET_FACTOR).toFixed(2)}</b> · ~$${(totalAnnual * NET_FACTOR / 12).toFixed(2)}/mies.`
+      : '';
     document.getElementById('avgYield').textContent = weightedAvgYield > 0 ? `${weightedAvgYield.toFixed(2)}%` : '—';
     document.getElementById('divCount').textContent = `${divCount} / ${PORTFOLIO.length}`;
     document.getElementById('newCount').textContent = document.querySelectorAll('tr.new-div').length.toString();
   }
+
+  renderCalendar(data);
 
   // Renderuj karty mobilne
   renderMobileCards(data);
@@ -1492,26 +1749,9 @@ function renderMobileCards(data) {
     }
 
     // Yield
-    const freqMults = {'Miesięczna':12,'Kwartalna':4,'Półroczna':2,'Roczna':1};
-    let freqMult = 1, freq = '—';
-    if (d?.frequency) {
-      const f = d.frequency.toLowerCase();
-      if (f.includes('month')) { freq='Miesięczna'; freqMult=12; }
-      else if (f.includes('quarter')) { freq='Kwartalna'; freqMult=4; }
-      else if (f.includes('semi')) { freq='Półroczna'; freqMult=2; }
-      else if (f.includes('annual')) { freq='Roczna'; freqMult=1; }
-    } else if (d?._history?.length >= 2) {
-      const dates = d._history.map(x => new Date(x.date)).sort((a,b)=>b-a);
-      const gaps = [];
-      for (let i=0; i<dates.length-1; i++) gaps.push((dates[i]-dates[i+1])/(1000*60*60*24));
-      const avg = gaps.reduce((a,b)=>a+b,0)/gaps.length;
-      if (avg < 40) { freq='Miesięczna'; freqMult=12; }
-      else if (avg < 100) { freq='Kwartalna'; freqMult=4; }
-      else if (avg < 200) { freq='Półroczna'; freqMult=2; }
-      else { freq='Roczna'; freqMult=1; }
-    } else if (d?._history?.length === 1) {
-      freq='Roczna'; freqMult=1;
-    }
+    const fi = getFreqInfo(d);
+    const freq = fi.label;
+    const freqMult = fi.mult;
     const annualTotal = divAmt * freqMult * s.shares;
     const costBasis   = avgCostUsd * s.shares;
     const yieldOnCost = costBasis > 0 && divAmt > 0 ? (annualTotal / costBasis * 100).toFixed(2) : null;
@@ -1558,7 +1798,7 @@ function renderMobileCards(data) {
         </div>
         <div class="m-field">
           <span class="m-label">Dywidenda / akcja</span>
-          <span class="m-value">${divAmt > 0 ? `$${divAmt.toFixed(4)}` : '—'}</span>
+          <span class="m-value">${divAmt > 0 ? `$${divAmt.toFixed(4)}` + divChangeBadge(getDivChange(d), s.currency) : '—'}</span>
         </div>
         <div class="m-field">
           <span class="m-label">Yield (od zakupu)</span>
@@ -1570,7 +1810,7 @@ function renderMobileCards(data) {
         </div>
         <div class="m-field">
           <span class="m-label">Roczna (Twoja)</span>
-          <span class="m-value" style="color:var(--accent)">${annualTotal > 0 ? '$' + annualTotal.toFixed(2) : '—'}</span>
+          <span class="m-value" style="color:var(--accent)">${annualTotal > 0 ? '$' + annualTotal.toFixed(2) + '<span class="net-sub">netto $' + (annualTotal * NET_FACTOR).toFixed(2) + '</span>' : '—'}</span>
         </div>
         <div class="m-field">
           <span class="m-label">Wartość pozycji</span>
@@ -1698,9 +1938,17 @@ function checkNewAnnouncements(data) {
       newOnes.push(`${ticker} ($${parseFloat(d.dividend||0).toFixed(4)})`);
     }
   });
+  const cuts = [];
+  Object.keys(data).forEach(ticker => {
+    const ch = getDivChange(data[ticker]);
+    if (ch && ch.pct < 0 && (new Date() - new Date(ch.date)) < 864e5 * 120) cuts.push(`${ticker} ${ch.pct.toFixed(1)}%`);
+  });
   const bar = document.getElementById('alertBar');
-  if (newOnes.length > 0) {
-    document.getElementById('alertText').textContent = `Nowe ogłoszenia dywidend (ostatnie 7 dni): ${newOnes.join(', ')}`;
+  const parts = [];
+  if (newOnes.length > 0) parts.push(`Nowe ogłoszenia dywidend (ostatnie 7 dni): ${newOnes.join(', ')}`);
+  if (cuts.length > 0) parts.push(`⚠️ Obniżka dywidendy: ${cuts.join(', ')}`);
+  if (parts.length > 0) {
+    document.getElementById('alertText').textContent = parts.join('  ·  ');
     bar.classList.add('show');
   } else {
     bar.classList.remove('show');
@@ -1836,6 +2084,16 @@ document.addEventListener('DOMContentLoaded', function() {
         </select>
         <div class="modal-error" id="manageError">Wypełnij wszystkie pola</div>
         <button class="btn-add-stock" onclick="addStock()">Dodaj spółkę</button>
+      </div>
+      <div class="modal-divider"></div>
+      <h4>🔄 Synchronizacja między urządzeniami — <span id="syncState" style="color:var(--muted);font-weight:400">wyłączona</span></h4>
+      <div class="modal-form">
+        <div class="sync-row">
+          <input id="syncTokenInput" type="password" placeholder="Token synchronizacji" autocomplete="off">
+          <button class="btn-add-stock" onclick="saveSyncToken()">Zapisz</button>
+        </div>
+        <button class="btn-add-stock" id="syncNowBtn" style="display:none" onclick="syncPull()">Synchronizuj teraz</button>
+        <div class="sync-status" id="syncStatus"></div>
       </div>
     </div>
   </div>
