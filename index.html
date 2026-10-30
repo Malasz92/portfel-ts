@@ -741,6 +741,7 @@
   .div-chg.up { color:var(--accent); background:rgba(0,229,160,0.12); }
   .div-chg.down { color:var(--red); background:rgba(255,77,77,0.14); }
   .net-sub { display:block; color:var(--muted); font-size:0.72rem; }
+  .div-spec { display:inline-block; font-family:'DM Mono',monospace; font-size:0.66rem; padding:1px 5px; border-radius:4px; margin-left:4px; white-space:nowrap; vertical-align:middle; color:var(--gold); background:rgba(245,200,66,0.12); }
   /* ── Synchronizacja ─────────────────────────────────────────────────────── */
   .sync-row { display:flex; gap:8px; }
   .sync-row input { flex:1; }
@@ -1107,11 +1108,20 @@ async function fetchAll() {
       if (Array.isArray(divList) && divList.length > 0) {
         // Posortuj malejąco po dacie
         const sorted = [...divList].sort((a, b) => new Date(b.date) - new Date(a.date));
-        const latest = sorted[0];
-        const rawAmount = parseFloat(latest.value || latest.amount || 0);
+        const history = sorted.slice(0, 36).map(d => ({
+          dividend: s.currency === 'PLN' && plnToUsd ? parseFloat(d.value||d.amount||0) * plnToUsd : parseFloat(d.value||d.amount||0),
+          raw: parseFloat(d.value||d.amount||0),
+          paymentDate: d.paymentDate || null,
+          period: d.period || null,
+          date: d.date
+        }));
+        // Ostatnia REGULARNA dywidenda (bez specjalnych/dodatkowych)
+        const cls = classifyHistory({ _history: history });
+        const latest = cls.regular[0] || cls.special[0];
+        const rawAmount = latest.amt;
         const amountUsd = (s.currency === 'PLN' && plnToUsd) ? rawAmount * plnToUsd : rawAmount;
+        const lastSpecial = cls.special.find(x => Date.now() - x.t < 365 * 864e5) || null;
 
-        // Ex-div date to latest.date w EODHD
         nextExDivDate = latest.date || null;
         nextPaymentDate = latest.paymentDate || null;
 
@@ -1120,17 +1130,12 @@ async function fetchAll() {
           dividendRaw: rawAmount,
           currency: s.currency || 'USD',
           plnToUsd,
-          declarationDate: latest.declarationDate || latest.date,
+          declarationDate: latest.date,
           date: latest.date,
-          _history: sorted.slice(0, 8).map(d => ({
-            dividend: s.currency === 'PLN' && plnToUsd ? parseFloat(d.value||d.amount||0) * plnToUsd : parseFloat(d.value||d.amount||0),
-            raw: parseFloat(d.value||d.amount||0),
-            paymentDate: d.paymentDate || null,
-            date: d.date
-          }))
+          _history: history
         };
 
-        log(`  ✓ div: ${s.currency==='PLN' ? rawAmount.toFixed(4)+' PLN →' : ''} $${amountUsd.toFixed(4)} | ex: ${nextExDivDate} | wypłata: ${nextPaymentDate||'—'} | cena: ${currentPriceRaw?.toFixed(2)||'?'}${s.currency==='PLN'?' zł':'$'}`);
+        log(`  ✓ div: ${s.currency==='PLN' ? rawAmount.toFixed(4)+' PLN →' : ''} $${amountUsd.toFixed(4)} | ex: ${nextExDivDate} | wypłata: ${nextPaymentDate||'—'} | cena: ${currentPriceRaw?.toFixed(2)||'?'}${s.currency==='PLN'?' zł':'$'}${lastSpecial ? ` | specj.: ${lastSpecial.amt.toFixed(4)} (${lastSpecial.date})` : ''}`);
       } else {
         log(`  ✗ brak dywidend | cena: ${currentPriceRaw?.toFixed(2)||'?'}${s.currency==='PLN'?' zł':'$'}`);
       }
@@ -1230,38 +1235,94 @@ const TAX_RATE = 0.19;
 const NET_FACTOR = 1 - TAX_RATE;
 const PL_MONTHS = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
 
-function getFreqInfo(d) {
+function median(a) {
+  if (!a.length) return 0;
+  const s = [...a].sort((x, y) => x - y), m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+// Rozdziela historię na dywidendy regularne i specjalne/dodatkowe (np. MAIN supplemental).
+// Specjalna = oznaczona tak przez EODHD (period) albo wypłata "wciśnięta" między regularne
+// (bliżej niż pół typowego odstępu); z dwóch bliskich wypłat regularna jest ta bliższa
+// kwotą poprzedniej regularnej.
+const SPECIAL_PERIOD_RE = /special|other|extra|irregular|supplement|bonus/i;
+const _clsCache = new WeakMap();
+function classifyHistory(d) {
   const h = (d && d._history) || [];
-  const uniq = [...new Set(h.map(x => x.date).filter(Boolean))].map(x => new Date(x)).filter(x => !isNaN(x)).sort((a,b) => b - a);
-  if (uniq.length >= 2) {
+  if (_clsCache.has(h)) return _clsCache.get(h);
+  const items = h.map(x => ({ ...x, amt: parseFloat(x.raw != null ? x.raw : x.dividend), t: new Date(x.date).getTime() }))
+    .filter(x => x.amt > 0 && !isNaN(x.t))
+    .sort((a, b) => a.t - b.t);
+  const special = [], pool = [];
+  items.forEach(x => (x.period && SPECIAL_PERIOD_RE.test(x.period) ? special : pool).push(x));
+  let regular = pool;
+  if (pool.length >= 3) {
     const gaps = [];
-    for (let i = 0; i < uniq.length - 1; i++) gaps.push((uniq[i] - uniq[i+1]) / 864e5);
-    const avg = gaps.reduce((a,b) => a + b, 0) / gaps.length;
-    if (avg < 45)  return { label: 'Miesięczna', mult: 12 };
-    if (avg < 100) return { label: 'Kwartalna',  mult: 4 };
-    if (avg < 200) return { label: 'Półroczna',  mult: 2 };
+    for (let i = 1; i < pool.length; i++) gaps.push((pool[i].t - pool[i - 1].t) / 864e5);
+    const interval = median(gaps.filter(g => g > 5)) || median(gaps);
+    const medAmt = median(pool.map(p => p.amt));
+    regular = [];
+    pool.forEach(x => {
+      const last = regular[regular.length - 1];
+      if (last && (x.t - last.t) / 864e5 < interval * 0.5) {
+        const prev = regular[regular.length - 2];
+        const ref = prev ? prev.amt : medAmt;
+        if (Math.abs(x.amt - ref) < Math.abs(last.amt - ref)) { special.push(last); regular[regular.length - 1] = x; }
+        else special.push(x);
+      } else {
+        regular.push(x);
+      }
+    });
+  }
+  const desc = arr => arr.slice().sort((a, b) => b.t - a.t);
+  const res = { regular: desc(regular), special: desc(special) };
+  _clsCache.set(h, res);
+  return res;
+}
+
+function getFreqInfo(d) {
+  const ts = [...new Set(classifyHistory(d).regular.map(x => x.t))].sort((a, b) => b - a);
+  if (ts.length >= 2) {
+    const gaps = [];
+    for (let i = 0; i < ts.length - 1; i++) gaps.push((ts[i] - ts[i + 1]) / 864e5);
+    const g = median(gaps);
+    if (g < 45)  return { label: 'Miesięczna', mult: 12 };
+    if (g < 100) return { label: 'Kwartalna',  mult: 4 };
+    if (g < 200) return { label: 'Półroczna',  mult: 2 };
     return { label: 'Roczna', mult: 1 };
   }
-  if (uniq.length === 1) return { label: 'Roczna', mult: 1 };
+  if (ts.length === 1) return { label: 'Roczna', mult: 1 };
   return { label: '—', mult: 1 };
 }
 
-// Porównanie ostatniej i poprzedniej dywidendy (w walucie spółki).
-// Gdy w jednym dniu są dwie wypłaty (np. regularna + specjalna), bierzemy mniejszą jako regularną.
+// Zmiana tylko między regularnymi dywidendami — specjalne nie wywołują alertu
 function getDivChange(d) {
-  const h = d && d._history;
-  if (!h || h.length < 2) return null;
-  const byDate = {};
-  h.forEach(x => {
-    const v = parseFloat(x.raw != null ? x.raw : x.dividend);
-    if (!(v > 0) || !x.date) return;
-    byDate[x.date] = byDate[x.date] == null ? v : Math.min(byDate[x.date], v);
-  });
-  const dates = Object.keys(byDate).sort().reverse();
-  if (dates.length < 2) return null;
-  const cur = byDate[dates[0]], prev = byDate[dates[1]];
+  const reg = classifyHistory(d).regular;
+  if (reg.length < 2) return null;
+  const cur = reg[0].amt, prev = reg[1].amt;
   const pct = (cur - prev) / prev * 100;
-  return { pct: Math.abs(pct) < 1 ? 0 : pct, cur, prev, date: dates[0] };
+  return { pct: Math.abs(pct) < 1 ? 0 : pct, cur, prev, date: reg[0].date };
+}
+
+// Specjalne z ostatnich 12 miesięcy
+function recentSpecials(d) {
+  return classifyHistory(d).special.filter(x => Date.now() - x.t < 365 * 864e5);
+}
+
+function specialBadge(d, currency) {
+  const sp = recentSpecials(d);
+  if (!sp.length) return '';
+  const last = sp[0];
+  const fmt = currency === 'PLN' ? last.amt.toFixed(4) + ' zł' : '$' + last.amt.toFixed(4);
+  const upcoming = last.paymentDate && new Date(last.paymentDate) > new Date();
+  const title = 'Dywidenda specjalna / dodatkowa: ' + fmt + ' (ex ' + last.date + (last.paymentDate ? ', wypłata ' + last.paymentDate : '')
+    + '). W ostatnich 12 mies.: ' + sp.length + '×. Nie jest wliczana do prognozy rocznej ani kalendarza.';
+  return '<span class="div-spec" title="' + title + '">★ specj. ' + fmt + (upcoming ? ' · 💰 ' + last.paymentDate.slice(5) : '') + '</span>';
+}
+
+// Suma specjalnych z 12 mies. dla pozycji (USD, brutto)
+function specialTTMUsd(d, shares) {
+  return recentSpecials(d).reduce((a, x) => a + (parseFloat(x.dividend) || 0) * shares, 0);
 }
 
 function divChangeBadge(ch, currency) {
@@ -1278,15 +1339,17 @@ function projectPayments(s, d) {
   const out = [];
   if (!d || !(parseFloat(d.dividend) > 0) || !d._history || !d._history.length) return out;
   const fi = getFreqInfo(d);
+  const r0 = classifyHistory(d).regular[0];
   const intervalMs = (365.25 / fi.mult) * 864e5;
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   const end = new Date(now.getFullYear(), now.getMonth() + 12, 1);
   let base, baseKnown = false;
-  if (d.nextPaymentDate) { base = new Date(d.nextPaymentDate); baseKnown = true; }
-  else { base = new Date(d.nextExDivDate || d._history[0].date); base.setDate(base.getDate() + 14); }
+  if (r0 && r0.paymentDate) { base = new Date(r0.paymentDate); baseKnown = true; }
+  else if (!r0 && d.nextPaymentDate) { base = new Date(d.nextPaymentDate); baseKnown = true; }
+  else { base = new Date(r0 ? r0.date : (d.nextExDivDate || d._history[0].date)); base.setDate(base.getDate() + 14); }
   if (isNaN(base)) return out;
-  const gross = parseFloat(d.dividend) * s.shares;
+  const gross = parseFloat(r0 ? r0.dividend : d.dividend) * s.shares;
   for (let k = 0; k < 400; k++) {
     const dt = new Date(base.getTime() + k * intervalMs);
     if (dt >= end) break;
@@ -1517,7 +1580,7 @@ function renderTable(data) {
       } else {
         divStr = `$${divAmt.toFixed(4)}`;
       }
-      divStr += divChangeBadge(getDivChange(d), s.currency);
+      divStr += divChangeBadge(getDivChange(d), s.currency) + specialBadge(d, s.currency);
     } else {
       divStr = '<span style="color:var(--muted)">—</span>';
     }
@@ -1534,6 +1597,7 @@ function renderTable(data) {
     // Roczna
     const annualStr = annualTotal > 0
       ? `$${annualTotal.toFixed(2)}<span class="net-sub">netto $${(annualTotal * NET_FACTOR).toFixed(2)}</span>`
+        + (specialTTMUsd(d, s.shares) > 0 ? `<span class="net-sub" style="color:var(--gold)" title="Dywidendy specjalne z ostatnich 12 mies. — nie wliczone w prognozę">+ specj. $${specialTTMUsd(d, s.shares).toFixed(2)}</span>` : '')
       : '<span style="color:var(--muted)">—</span>';
 
     // Wartość pozycji dynamiczna
@@ -1798,7 +1862,7 @@ function renderMobileCards(data) {
         </div>
         <div class="m-field">
           <span class="m-label">Dywidenda / akcja</span>
-          <span class="m-value">${divAmt > 0 ? `$${divAmt.toFixed(4)}` + divChangeBadge(getDivChange(d), s.currency) : '—'}</span>
+          <span class="m-value">${divAmt > 0 ? `$${divAmt.toFixed(4)}` + divChangeBadge(getDivChange(d), s.currency) + specialBadge(d, s.currency) : '—'}</span>
         </div>
         <div class="m-field">
           <span class="m-label">Yield (od zakupu)</span>
@@ -1810,7 +1874,7 @@ function renderMobileCards(data) {
         </div>
         <div class="m-field">
           <span class="m-label">Roczna (Twoja)</span>
-          <span class="m-value" style="color:var(--accent)">${annualTotal > 0 ? '$' + annualTotal.toFixed(2) + '<span class="net-sub">netto $' + (annualTotal * NET_FACTOR).toFixed(2) + '</span>' : '—'}</span>
+          <span class="m-value" style="color:var(--accent)">${annualTotal > 0 ? '$' + annualTotal.toFixed(2) + '<span class="net-sub">netto $' + (annualTotal * NET_FACTOR).toFixed(2) + '</span>' + (specialTTMUsd(d, s.shares) > 0 ? '<span class="net-sub" style="color:var(--gold)">+ specjalne (12 mies.) $' + specialTTMUsd(d, s.shares).toFixed(2) + '</span>' : '') : '—'}</span>
         </div>
         <div class="m-field">
           <span class="m-label">Wartość pozycji</span>
